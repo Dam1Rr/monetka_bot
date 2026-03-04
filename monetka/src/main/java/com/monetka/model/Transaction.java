@@ -35,6 +35,10 @@ public class Transaction {
     @JoinColumn(name = "category_id")
     private Category category;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "subcategory_id")
+    private Subcategory subcategory;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false)
     private TransactionType type;

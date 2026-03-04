@@ -7,31 +7,36 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "categories")
+@Table(name = "subcategories")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(of = "id")
-public class Category {
+public class Subcategory {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "name", nullable = false, unique = true)
+    @Column(name = "name", nullable = false)
     private String name;
 
     @Column(name = "emoji")
     private String emoji;
 
-    @Column(name = "is_default")
-    @Builder.Default
-    private boolean isDefault = false;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id", nullable = false)
+    private Category category;
 
-    @OneToMany(mappedBy = "category", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(
+            name = "subcategory_keywords",
+            joinColumns = @JoinColumn(name = "subcategory_id")
+    )
+    @Column(name = "keyword")
     @Builder.Default
-    private List<Subcategory> subcategories = new ArrayList<>();
+    private List<String> keywords = new ArrayList<>();
 
     public String getDisplayName() {
         return emoji != null ? emoji + " " + name : name;

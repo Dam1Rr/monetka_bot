@@ -3,11 +3,15 @@ package com.monetka.model.enums;
 public enum UserState {
     IDLE,
 
-    // --- Transactions ---
+    // Транзакции
     WAITING_EXPENSE,
     WAITING_INCOME,
 
-    // --- Subscription wizard ---
+    // Выбор категории вручную (когда бот не уверен)
+    WAITING_CATEGORY_CHOICE,
+    WAITING_SUBCATEGORY_CHOICE,
+
+    // Подписки
     WAITING_SUB_NAME,
     WAITING_SUB_AMOUNT,
     WAITING_SUB_START_DATE,
