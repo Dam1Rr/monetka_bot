@@ -27,7 +27,7 @@ public class DailyReportScheduler {
     // Every day at 21:00 UTC (adjust to your timezone)
     @Scheduled(cron = "0 0 21 * * *")
     public void sendDailyReports() {
-        List<User> activeUsers = userService.getActiveUsers();
+        List<User> activeUsers = userService.getApprovedUsers();
         log.info("Sending daily reports to {} users", activeUsers.size());
 
         for (User user : activeUsers) {
@@ -36,7 +36,7 @@ public class DailyReportScheduler {
                 bot.sendMarkdown(user.getTelegramId(), report);
             } catch (Exception e) {
                 log.error("Failed to send daily report to {}: {}",
-                    user.getTelegramId(), e.getMessage());
+                        user.getTelegramId(), e.getMessage());
             }
         }
     }
