@@ -1,9 +1,5 @@
 package com.monetka.model.enums;
 
-/**
- * FSM states stored in-memory (UserStateService).
- * Tracks what input the bot is currently expecting from a user.
- */
 public enum UserState {
     IDLE,
 
@@ -14,5 +10,6 @@ public enum UserState {
     // --- Subscription wizard ---
     WAITING_SUB_NAME,
     WAITING_SUB_AMOUNT,
-    WAITING_SUB_DAY
+    WAITING_SUB_START_DATE,
+    WAITING_SUB_END_DATE
 }

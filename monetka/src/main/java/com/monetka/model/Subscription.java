@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -34,10 +35,13 @@ public class Subscription {
     @JoinColumn(name = "category_id")
     private Category category;
 
-    /** Day of month on which the expense is auto-charged (1–28) */
-    @Column(name = "day_of_month", nullable = false)
-    @Builder.Default
-    private int dayOfMonth = 1;
+    /** Дата начала подписки */
+    @Column(name = "start_date", nullable = false)
+    private LocalDate startDate;
+
+    /** Дата окончания подписки (null = бессрочная) */
+    @Column(name = "end_date")
+    private LocalDate endDate;
 
     @Column(name = "active", nullable = false)
     @Builder.Default
@@ -49,5 +53,17 @@ public class Subscription {
     @PrePersist
     void prePersist() {
         if (createdAt == null) createdAt = LocalDateTime.now();
+    }
+
+    /** Дней до окончания. null если бессрочная или уже истекла */
+    public Long daysUntilExpiry() {
+        if (endDate == null) return null;
+        long days = java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), endDate);
+        return days >= 0 ? days : null;
+    }
+
+    /** Истекла ли подписка */
+    public boolean isExpired() {
+        return endDate != null && LocalDate.now().isAfter(endDate);
     }
 }

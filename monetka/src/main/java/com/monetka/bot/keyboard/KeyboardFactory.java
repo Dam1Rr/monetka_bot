@@ -9,77 +9,90 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.Keyboard
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Factory for building Telegram keyboard markups.
- * Main menu: только 2 кнопки — Расход и Доход.
- * Остальные функции через команды.
- */
 public final class KeyboardFactory {
 
     private KeyboardFactory() {}
 
-    // ---- Main menu — только 2 кнопки ----
+    // ---- Главное меню — 2 кнопки ----
 
     public static ReplyKeyboardMarkup mainMenu() {
-        ReplyKeyboardMarkup keyboard = new ReplyKeyboardMarkup();
-        keyboard.setResizeKeyboard(true);
-        keyboard.setOneTimeKeyboard(false);
+        ReplyKeyboardMarkup kb = new ReplyKeyboardMarkup();
+        kb.setResizeKeyboard(true);
+        kb.setOneTimeKeyboard(false);
 
         KeyboardRow row = new KeyboardRow();
         row.add("💸 Расход");
         row.add("💰 Доход");
 
-        keyboard.setKeyboard(List.of(row));
-        return keyboard;
+        kb.setKeyboard(List.of(row));
+        return kb;
     }
 
-    // ---- Отмена (во время ввода) ----
+    // ---- Кнопка отмены ----
 
     public static ReplyKeyboardMarkup cancelMenu() {
-        ReplyKeyboardMarkup keyboard = new ReplyKeyboardMarkup();
-        keyboard.setResizeKeyboard(true);
-        keyboard.setOneTimeKeyboard(false);
+        ReplyKeyboardMarkup kb = new ReplyKeyboardMarkup();
+        kb.setResizeKeyboard(true);
 
         KeyboardRow row = new KeyboardRow();
         row.add("❌ Отменить действие");
-
-        keyboard.setKeyboard(List.of(row));
-        return keyboard;
+        kb.setKeyboard(List.of(row));
+        return kb;
     }
 
-    // ---- Admin: одобрить / отклонить нового пользователя ----
-
-    public static InlineKeyboardMarkup adminApproveButtons(Long telegramId) {
-        return InlineKeyboardMarkup.builder()
-                .keyboardRow(List.of(
-                        button("✅ Одобрить",   "approve:" + telegramId),
-                        button("🚫 Заблокировать", "reject:"  + telegramId)
-                ))
-                .build();
-    }
-
-    // ---- Subscription management ----
-
-    public static InlineKeyboardMarkup subscriptionActions(List<Subscription> subs) {
-        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-        for (Subscription sub : subs) {
-            rows.add(List.of(
-                    button("❌ " + sub.getName(), "cancel_sub:" + sub.getId())
-            ));
-        }
-        rows.add(List.of(button("➕ Новая подписка", "add_sub")));
-        return InlineKeyboardMarkup.builder().keyboard(rows).build();
-    }
-
-    // ---- Statistics period selector ----
+    // ---- Статистика: сегодня / неделя / месяц ----
 
     public static InlineKeyboardMarkup statsPeriod() {
         return InlineKeyboardMarkup.builder()
                 .keyboardRow(List.of(
                         button("📅 Сегодня", "stats:today"),
-                        button("📆 Месяц",   "stats:month")
+                        button("📆 Неделя",  "stats:week"),
+                        button("🗓 Месяц",   "stats:month")
                 ))
                 .build();
+    }
+
+    // ---- Admin: одобрить / заблокировать нового пользователя ----
+
+    public static InlineKeyboardMarkup adminApproveButtons(Long telegramId) {
+        return InlineKeyboardMarkup.builder()
+                .keyboardRow(List.of(
+                        button("✅ Одобрить",      "approve:"    + telegramId),
+                        button("🚫 Заблокировать", "block_user:" + telegramId)
+                ))
+                .build();
+    }
+
+    // ---- Admin: действия над конкретным пользователем в списке ----
+
+    public static InlineKeyboardMarkup adminUserActions(Long telegramId, boolean isBlocked) {
+        if (isBlocked) {
+            return InlineKeyboardMarkup.builder()
+                    .keyboardRow(List.of(
+                            button("✅ Разблокировать", "unblock_user:" + telegramId)
+                    ))
+                    .build();
+        } else {
+            return InlineKeyboardMarkup.builder()
+                    .keyboardRow(List.of(
+                            button("✅ Одобрить",      "approve:"    + telegramId),
+                            button("🚫 Заблокировать", "block_user:" + telegramId)
+                    ))
+                    .build();
+        }
+    }
+
+    // ---- Подписки ----
+
+    public static InlineKeyboardMarkup subscriptionActions(List<Subscription> subs) {
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+        for (Subscription sub : subs) {
+            rows.add(List.of(
+                    button("❌ Удалить: " + sub.getName(), "cancel_sub:" + sub.getId())
+            ));
+        }
+        rows.add(List.of(button("➕ Добавить подписку", "add_sub")));
+        return InlineKeyboardMarkup.builder().keyboard(rows).build();
     }
 
     // ---- Helper ----

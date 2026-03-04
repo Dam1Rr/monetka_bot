@@ -24,7 +24,6 @@ public class CallbackHandler {
     private final UserStateService    stateService;
     private final SubscriptionService subscriptionService;
     private final ReportService       reportService;
-    private final StatisticsService   statisticsService;
     private final BotProperties       botProperties;
 
     public void handle(CallbackQuery callback, MonetkaBot bot) {
@@ -38,109 +37,105 @@ public class CallbackHandler {
         if (userOpt.isEmpty()) return;
         User user = userOpt.get();
 
-        // ---- Admin: approve / reject ----
-        if (data.startsWith("approve:")) {
-            handleApprove(data, chatId, telegramId, bot);
-
-        } else if (data.startsWith("reject:")) {
-            handleReject(data, chatId, telegramId, bot);
-
-            // ---- Subscription: cancel ----
-        } else if (data.startsWith("cancel_sub:")) {
-            handleCancelSub(user, data, chatId, bot);
-
-        } else if (data.equals("add_sub")) {
-            stateService.setState(telegramId, UserState.WAITING_SUB_NAME);
-            bot.sendMessage(chatId, "Введи название подписки:", KeyboardFactory.cancelMenu());
-
-            // ---- Statistics period ----
-        } else if (data.startsWith("stats:")) {
-            handleStats(user, data, chatId, bot);
-
-        } else {
-            log.warn("Unknown callback: {}", data);
-        }
+        if      (data.startsWith("approve:"))     handleApprove(data, chatId, telegramId, bot);
+        else if (data.startsWith("block_user:"))  handleBlockUser(data, chatId, telegramId, bot);
+        else if (data.startsWith("unblock_user:"))handleUnblockUser(data, chatId, telegramId, bot);
+        else if (data.startsWith("cancel_sub:"))  handleCancelSub(user, data, chatId, bot);
+        else if (data.equals("add_sub"))          handleAddSub(telegramId, chatId, bot);
+        else if (data.startsWith("stats:"))       handleStats(user, data, chatId, bot);
+        else log.warn("Unknown callback: {}", data);
     }
 
-    // ---- Admin approve ----
+    // ================================================================
+    // Admin callbacks
+    // ================================================================
 
     private void handleApprove(String data, long chatId, long telegramId, MonetkaBot bot) {
         if (!isAdmin(telegramId)) return;
+        long targetId = parseTargetId(data);
 
-        long targetId = Long.parseLong(data.split(":")[1]);
         if (userService.approveUser(targetId)) {
             bot.sendText(chatId, "✅ Пользователь " + targetId + " одобрен.");
             bot.sendMessage(targetId,
-                    "✅ Ваш доступ подтверждён! Добро пожаловать в Monetka 🎉",
+                    "✅ *Добро пожаловать в Monetka!*\n\nТвой доступ подтверждён. Начнём 💪",
                     KeyboardFactory.mainMenu());
         }
     }
 
-    private void handleReject(String data, long chatId, long telegramId, MonetkaBot bot) {
+    private void handleBlockUser(String data, long chatId, long telegramId, MonetkaBot bot) {
         if (!isAdmin(telegramId)) return;
+        long targetId = parseTargetId(data);
 
-        long targetId = Long.parseLong(data.split(":")[1]);
         if (userService.blockUser(targetId)) {
-            bot.sendText(chatId, "🚫 Пользователь " + targetId + " отклонён.");
-            bot.sendText(targetId, "❌ Ваша заявка на доступ отклонена.");
+            bot.sendText(chatId, "🚫 Пользователь " + targetId + " заблокирован.");
+            bot.sendText(targetId, "Ваш доступ к Monetka был заблокирован администратором.");
         }
     }
 
-    // ---- Cancel subscription ----
+    private void handleUnblockUser(String data, long chatId, long telegramId, MonetkaBot bot) {
+        if (!isAdmin(telegramId)) return;
+        long targetId = parseTargetId(data);
+
+        if (userService.unblockUser(targetId)) {
+            bot.sendText(chatId, "✅ Пользователь " + targetId + " разблокирован.");
+            bot.sendMessage(targetId,
+                    "✅ Твой доступ к Monetka восстановлен!",
+                    KeyboardFactory.mainMenu());
+        }
+    }
+
+    // ================================================================
+    // Subscription callbacks
+    // ================================================================
 
     private void handleCancelSub(User user, String data, long chatId, MonetkaBot bot) {
-        long subId = Long.parseLong(data.split(":")[1]);
-        boolean cancelled = subscriptionService.cancel(user, subId);
-
-        if (cancelled) {
+        long subId = parseTargetId(data);
+        if (subscriptionService.cancel(user, subId)) {
             var subs = subscriptionService.getActiveSubscriptions(user);
             bot.sendMessage(chatId,
-                    "✅ Подписка отменена.\n\n" + reportService.buildSubscriptionsList(user),
+                    "✅ Подписка удалена.\n\n" + reportService.buildSubscriptionsList(user),
                     KeyboardFactory.subscriptionActions(subs));
         } else {
             bot.sendText(chatId, "Подписка не найдена.");
         }
     }
 
-    // ---- Statistics ----
+    private void handleAddSub(long telegramId, long chatId, MonetkaBot bot) {
+        stateService.setState(telegramId, UserState.WAITING_SUB_NAME);
+        bot.sendMessage(chatId, "Введи название подписки:\n_(например: Netflix, Spotify)_",
+                KeyboardFactory.cancelMenu());
+    }
+
+    // ================================================================
+    // Stats callbacks
+    // ================================================================
 
     private void handleStats(User user, String data, long chatId, MonetkaBot bot) {
         String period = data.split(":")[1];
         String report = switch (period) {
-            case "today" -> buildTodayStats(user);
+            case "today" -> reportService.buildTodayStats(user);
+            case "week"  -> reportService.buildWeekStats(user);
             case "month" -> reportService.buildMonthStats(user);
             default      -> "Неизвестный период";
         };
-        bot.sendMarkdown(chatId, report);
+        bot.sendMessage(chatId, report, KeyboardFactory.statsPeriod());
     }
 
-    private String buildTodayStats(User user) {
-        var from = java.time.LocalDate.now().atStartOfDay();
-        var to   = from.plusDays(1);
-        var byCategory = statisticsService.getExpensesByCategory(user, from, to);
-
-        StringBuilder sb = new StringBuilder("📊 *Статистика за сегодня*\n\n");
-        if (byCategory.isEmpty()) {
-            sb.append("Расходов сегодня нет 🌙");
-        } else {
-            byCategory.forEach((cat, amt) ->
-                    sb.append(cat).append(" — ")
-                            .append(String.format("%,.0f сом", amt)).append("\n"));
-        }
-        return sb.toString();
-    }
-
-    // ---- Helpers ----
+    // ================================================================
+    // Helpers
+    // ================================================================
 
     private boolean isAdmin(long telegramId) {
         return botProperties.getAdminIds().contains(telegramId);
     }
 
+    private long parseTargetId(String data) {
+        return Long.parseLong(data.split(":")[1]);
+    }
+
     private void answerCallback(String callbackId, MonetkaBot bot) {
         try {
-            bot.execute(AnswerCallbackQuery.builder()
-                    .callbackQueryId(callbackId)
-                    .build());
+            bot.execute(AnswerCallbackQuery.builder().callbackQueryId(callbackId).build());
         } catch (TelegramApiException e) {
             log.warn("Failed to answer callback: {}", e.getMessage());
         }

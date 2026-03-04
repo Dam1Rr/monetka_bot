@@ -10,12 +10,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Automatically creates expense transactions for active subscriptions
- * on their due day at 09:00.
+ * Ежемесячное списание подписок + предупреждение об истекающих.
  */
 @Slf4j
 @Component
@@ -26,38 +24,43 @@ public class SubscriptionScheduler {
     private final TransactionService  transactionService;
     private final MonetkaBot          bot;
 
+    /** Списание подписок каждый день в 09:00 */
     @Scheduled(cron = "0 0 9 * * *")
     public void chargeSubscriptions() {
-        int today = LocalDate.now().getDayOfMonth();
-        List<Subscription> due = subscriptionService.getDueToday(today);
-
+        List<Subscription> due = subscriptionService.getDueToday();
         if (due.isEmpty()) return;
 
-        log.info("Processing {} subscriptions due on day {}", due.size(), today);
+        log.info("Charging {} subscriptions", due.size());
 
         for (Subscription sub : due) {
             try {
                 transactionService.addExpense(
-                    sub.getUser(),
-                    sub.getAmount(),
-                    sub.getName() + " (подписка)"
+                        sub.getUser(), sub.getAmount(), sub.getName() + " (подписка)"
                 );
-
-                bot.sendMessage(
-                    sub.getUser().getTelegramId(),
-                    "🔄 Подписка списана:\n\n" +
-                    "📝 " + sub.getName() + "\n" +
-                    String.format("💸 -%.0f ₸", sub.getAmount()),
-                    KeyboardFactory.mainMenu()
-                );
-
-                log.debug("Subscription charged: {} for user {}",
-                    sub.getName(), sub.getUser().getTelegramId());
-
+                bot.sendMessage(sub.getUser().getTelegramId(),
+                        "🔄 *Списание подписки*\n\n" +
+                                "📝 " + sub.getName() + "\n" +
+                                String.format("💸 −%,.0f сом", sub.getAmount()),
+                        KeyboardFactory.mainMenu());
             } catch (Exception e) {
-                log.error("Failed to charge subscription {} for user {}: {}",
-                    sub.getId(), sub.getUser().getTelegramId(), e.getMessage());
+                log.error("Failed to charge subscription {}: {}", sub.getId(), e.getMessage());
             }
+        }
+    }
+
+    /** Напоминание об истекающих подписках в 10:00 */
+    @Scheduled(cron = "0 0 10 * * *")
+    public void remindExpiring() {
+        List<Subscription> expiring = subscriptionService.getExpiringSoon(3);
+        for (Subscription sub : expiring) {
+            Long days = sub.daysUntilExpiry();
+            if (days == null) continue;
+
+            String msg = days == 0
+                    ? "⚠️ *Подписка истекает сегодня!*\n📝 " + sub.getName()
+                    : "⏰ *Подписка истекает через " + days + " дн.*\n📝 " + sub.getName();
+
+            bot.sendMarkdown(sub.getUser().getTelegramId(), msg);
         }
     }
 }

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 @Slf4j
@@ -17,21 +18,23 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SubscriptionService {
 
-    private final SubscriptionRepository subscriptionRepository;
+    private final SubscriptionRepository   subscriptionRepository;
     private final CategoryDetectionService categoryDetectionService;
 
     @Transactional
-    public Subscription create(User user, String name, BigDecimal amount, int dayOfMonth) {
+    public Subscription create(User user, String name, BigDecimal amount,
+                               LocalDate startDate, LocalDate endDate) {
         Category category = categoryDetectionService.detect(name);
 
         Subscription sub = Subscription.builder()
-            .user(user)
-            .name(name)
-            .amount(amount)
-            .category(category)
-            .dayOfMonth(dayOfMonth)
-            .active(true)
-            .build();
+                .user(user)
+                .name(name)
+                .amount(amount)
+                .category(category)
+                .startDate(startDate)
+                .endDate(endDate)
+                .active(true)
+                .build();
 
         Subscription saved = subscriptionRepository.save(sub);
         log.info("Subscription created: '{}' {} for user {}", name, amount, user.getTelegramId());
@@ -54,7 +57,14 @@ public class SubscriptionService {
     }
 
     @Transactional(readOnly = true)
-    public List<Subscription> getDueToday(int dayOfMonth) {
-        return subscriptionRepository.findByActiveTrueAndDayOfMonth(dayOfMonth);
+    public List<Subscription> getDueToday() {
+        return subscriptionRepository.findDueToday(LocalDate.now());
+    }
+
+    @Transactional(readOnly = true)
+    public List<Subscription> getExpiringSoon(int days) {
+        LocalDate from = LocalDate.now();
+        LocalDate to   = from.plusDays(days);
+        return subscriptionRepository.findExpiringBetween(from, to);
     }
 }
