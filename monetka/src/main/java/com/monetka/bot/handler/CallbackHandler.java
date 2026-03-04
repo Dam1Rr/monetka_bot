@@ -45,15 +45,15 @@ public class CallbackHandler {
         } else if (data.startsWith("reject:")) {
             handleReject(data, chatId, telegramId, bot);
 
-        // ---- Subscription: cancel ----
+            // ---- Subscription: cancel ----
         } else if (data.startsWith("cancel_sub:")) {
             handleCancelSub(user, data, chatId, bot);
 
         } else if (data.equals("add_sub")) {
             stateService.setState(telegramId, UserState.WAITING_SUB_NAME);
-            bot.sendMessage(chatId, "Введи название подписки:", KeyboardFactory.cancelOnly());
+            bot.sendMessage(chatId, "Введи название подписки:", KeyboardFactory.cancelMenu());
 
-        // ---- Statistics period ----
+            // ---- Statistics period ----
         } else if (data.startsWith("stats:")) {
             handleStats(user, data, chatId, bot);
 
@@ -71,8 +71,8 @@ public class CallbackHandler {
         if (userService.approveUser(targetId)) {
             bot.sendText(chatId, "✅ Пользователь " + targetId + " одобрен.");
             bot.sendMessage(targetId,
-                "✅ Ваш доступ подтверждён! Добро пожаловать в Monetka 🎉",
-                KeyboardFactory.mainMenu());
+                    "✅ Ваш доступ подтверждён! Добро пожаловать в Monetka 🎉",
+                    KeyboardFactory.mainMenu());
         }
     }
 
@@ -95,8 +95,8 @@ public class CallbackHandler {
         if (cancelled) {
             var subs = subscriptionService.getActiveSubscriptions(user);
             bot.sendMessage(chatId,
-                "✅ Подписка отменена.\n\n" + reportService.buildSubscriptionsList(user),
-                KeyboardFactory.subscriptionActions(subs));
+                    "✅ Подписка отменена.\n\n" + reportService.buildSubscriptionsList(user),
+                    KeyboardFactory.subscriptionActions(subs));
         } else {
             bot.sendText(chatId, "Подписка не найдена.");
         }
@@ -124,8 +124,8 @@ public class CallbackHandler {
             sb.append("Расходов сегодня нет 🌙");
         } else {
             byCategory.forEach((cat, amt) ->
-                sb.append(cat).append(" — ")
-                  .append(String.format("%,.0f ₸", amt)).append("\n"));
+                    sb.append(cat).append(" — ")
+                            .append(String.format("%,.0f сом", amt)).append("\n"));
         }
         return sb.toString();
     }
@@ -139,8 +139,8 @@ public class CallbackHandler {
     private void answerCallback(String callbackId, MonetkaBot bot) {
         try {
             bot.execute(AnswerCallbackQuery.builder()
-                .callbackQueryId(callbackId)
-                .build());
+                    .callbackQueryId(callbackId)
+                    .build());
         } catch (TelegramApiException e) {
             log.warn("Failed to answer callback: {}", e.getMessage());
         }
