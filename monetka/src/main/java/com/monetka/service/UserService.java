@@ -25,12 +25,12 @@ public class UserService {
                               String firstName, String lastName) {
         return userRepository.findByTelegramId(telegramId).orElseGet(() -> {
             User newUser = User.builder()
-                .telegramId(telegramId)
-                .username(username)
-                .firstName(firstName)
-                .lastName(lastName)
-                .status(UserStatus.PENDING)
-                .build();
+                    .telegramId(telegramId)
+                    .username(username)
+                    .firstName(firstName)
+                    .lastName(lastName)
+                    .status(UserStatus.PENDING)
+                    .build();
             User saved = userRepository.save(newUser);
             log.info("New user registered: {} ({})", saved.getDisplayName(), telegramId);
             return saved;
@@ -43,10 +43,10 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public boolean isActive(Long telegramId) {
+    public boolean isApproved(Long telegramId) {
         return userRepository.findByTelegramId(telegramId)
-            .map(u -> u.getStatus() == UserStatus.ACTIVE)
-            .orElse(false);
+                .map(u -> u.getStatus() == UserStatus.APPROVED)
+                .orElse(false);
     }
 
     // ---- Admin actions ----
@@ -54,7 +54,7 @@ public class UserService {
     @Transactional
     public boolean approveUser(Long telegramId) {
         return userRepository.findByTelegramId(telegramId).map(user -> {
-            user.setStatus(UserStatus.ACTIVE);
+            user.setStatus(UserStatus.APPROVED);
             userRepository.save(user);
             log.info("User approved: {}", telegramId);
             return true;
@@ -71,13 +71,30 @@ public class UserService {
         }).orElse(false);
     }
 
+    @Transactional
+    public boolean unblockUser(Long telegramId) {
+        return userRepository.findByTelegramId(telegramId).map(user -> {
+            user.setStatus(UserStatus.APPROVED);
+            userRepository.save(user);
+            log.info("User unblocked: {}", telegramId);
+            return true;
+        }).orElse(false);
+    }
+
+    // ---- Queries by status ----
+
     @Transactional(readOnly = true)
     public List<User> getPendingUsers() {
         return userRepository.findAllByStatus(UserStatus.PENDING);
     }
 
     @Transactional(readOnly = true)
-    public List<User> getActiveUsers() {
-        return userRepository.findAllByStatus(UserStatus.ACTIVE);
+    public List<User> getApprovedUsers() {
+        return userRepository.findAllByStatus(UserStatus.APPROVED);
+    }
+
+    @Transactional(readOnly = true)
+    public List<User> getBlockedUsers() {
+        return userRepository.findAllByStatus(UserStatus.BLOCKED);
     }
 }

@@ -11,69 +11,62 @@ import java.util.List;
 
 /**
  * Factory for building Telegram keyboard markups.
- * All methods are static — no need to inject.
+ * Main menu: только 2 кнопки — Расход и Доход.
+ * Остальные функции через команды.
  */
 public final class KeyboardFactory {
 
     private KeyboardFactory() {}
 
-    // ---- Main menu ----
+    // ---- Main menu — только 2 кнопки ----
 
     public static ReplyKeyboardMarkup mainMenu() {
         ReplyKeyboardMarkup keyboard = new ReplyKeyboardMarkup();
         keyboard.setResizeKeyboard(true);
         keyboard.setOneTimeKeyboard(false);
 
-        KeyboardRow row1 = new KeyboardRow();
-        row1.add("💸 Расход");
-        row1.add("💰 Доход");
-
-        KeyboardRow row2 = new KeyboardRow();
-        row2.add("📊 Статистика");
-        row2.add("💳 Баланс");
-
-        KeyboardRow row3 = new KeyboardRow();
-        row3.add("🔄 Подписки");
-        row3.add("❓ Помощь");
-
-        keyboard.setKeyboard(List.of(row1, row2, row3));
-        return keyboard;
-    }
-
-    // ---- Cancel button ----
-
-    public static ReplyKeyboardMarkup cancelOnly() {
-        ReplyKeyboardMarkup keyboard = new ReplyKeyboardMarkup();
-        keyboard.setResizeKeyboard(true);
-
         KeyboardRow row = new KeyboardRow();
-        row.add("❌ Отмена");
+        row.add("💸 Расход");
+        row.add("💰 Доход");
+
         keyboard.setKeyboard(List.of(row));
         return keyboard;
     }
 
-    // ---- Admin pending users ----
+    // ---- Отмена (во время ввода) ----
+
+    public static ReplyKeyboardMarkup cancelMenu() {
+        ReplyKeyboardMarkup keyboard = new ReplyKeyboardMarkup();
+        keyboard.setResizeKeyboard(true);
+        keyboard.setOneTimeKeyboard(false);
+
+        KeyboardRow row = new KeyboardRow();
+        row.add("❌ Отменить действие");
+
+        keyboard.setKeyboard(List.of(row));
+        return keyboard;
+    }
+
+    // ---- Admin: одобрить / отклонить нового пользователя ----
 
     public static InlineKeyboardMarkup adminApproveButtons(Long telegramId) {
         return InlineKeyboardMarkup.builder()
-            .keyboardRow(List.of(
-                button("✅ Одобрить", "approve:" + telegramId),
-                button("❌ Отклонить", "reject:" + telegramId)
-            ))
-            .build();
+                .keyboardRow(List.of(
+                        button("✅ Одобрить",   "approve:" + telegramId),
+                        button("🚫 Заблокировать", "reject:"  + telegramId)
+                ))
+                .build();
     }
 
     // ---- Subscription management ----
 
     public static InlineKeyboardMarkup subscriptionActions(List<Subscription> subs) {
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-
         for (Subscription sub : subs) {
             rows.add(List.of(
-                button("❌ " + sub.getName(), "cancel_sub:" + sub.getId())
+                    button("❌ " + sub.getName(), "cancel_sub:" + sub.getId())
             ));
         }
-
         rows.add(List.of(button("➕ Новая подписка", "add_sub")));
         return InlineKeyboardMarkup.builder().keyboard(rows).build();
     }
@@ -82,19 +75,19 @@ public final class KeyboardFactory {
 
     public static InlineKeyboardMarkup statsPeriod() {
         return InlineKeyboardMarkup.builder()
-            .keyboardRow(List.of(
-                button("📅 Сегодня",  "stats:today"),
-                button("📆 Месяц",    "stats:month")
-            ))
-            .build();
+                .keyboardRow(List.of(
+                        button("📅 Сегодня", "stats:today"),
+                        button("📆 Месяц",   "stats:month")
+                ))
+                .build();
     }
 
     // ---- Helper ----
 
     private static InlineKeyboardButton button(String text, String callbackData) {
         return InlineKeyboardButton.builder()
-            .text(text)
-            .callbackData(callbackData)
-            .build();
+                .text(text)
+                .callbackData(callbackData)
+                .build();
     }
 }

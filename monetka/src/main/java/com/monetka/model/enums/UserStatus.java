@@ -1,12 +1,12 @@
 package com.monetka.model.enums;
 
 public enum UserStatus {
-    /** Registered but waiting for admin approval */
+    /** Зарегистрирован, ожидает одобрения администратора */
     PENDING,
 
-    /** Approved and can use the bot */
-    ACTIVE,
+    /** Одобрен — имеет полный доступ */
+    APPROVED,
 
-    /** Banned by admin */
+    /** Заблокирован администратором */
     BLOCKED
 }
