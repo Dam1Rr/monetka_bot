@@ -66,11 +66,11 @@ public class MessageHandler {
             case "💳 Баланс"     -> showBalance(user, chatId, bot);
             case "🔄 Подписки"   -> showSubscriptions(user, chatId, bot);
             case "❌ Отмена"     -> { stateService.reset(telegramId);
-                                      bot.sendMessage(chatId, "Отменено.", KeyboardFactory.mainMenu()); }
+                bot.sendMessage(chatId, "Отменено.", KeyboardFactory.mainMenu()); }
             case "❓ Помощь"     -> bot.sendMarkdown(chatId, helpText());
             default -> bot.sendMessage(chatId,
-                "Используй меню ниже 👇",
-                KeyboardFactory.mainMenu());
+                    "Используй меню ниже 👇",
+                    KeyboardFactory.mainMenu());
         }
     }
 
@@ -79,8 +79,8 @@ public class MessageHandler {
     private void startExpense(long chatId, long telegramId, MonetkaBot bot) {
         stateService.setState(telegramId, UserState.WAITING_EXPENSE);
         bot.sendMessage(chatId,
-            "Введи расход в формате:\n`шаурма 300`",
-            KeyboardFactory.cancelOnly());
+                "Введи расход в формате:\n`шаурма 300`",
+                KeyboardFactory.cancelOnly());
     }
 
     private void handleExpenseInput(User user, String text, long chatId,
@@ -95,15 +95,15 @@ public class MessageHandler {
         stateService.reset(telegramId);
 
         String categoryName = tx.getCategory() != null
-            ? tx.getCategory().getDisplayName() : "💰 Прочее";
+                ? tx.getCategory().getDisplayName() : "💰 Прочее";
 
         bot.sendMessage(chatId,
-            "✅ Расход сохранён!\n\n" +
-            "📝 " + parsed.description() + "\n" +
-            "💸 -" + fmt(parsed.amount()) + "\n" +
-            "🏷 " + categoryName + "\n" +
-            "💳 Баланс: " + fmt(user.getBalance()),
-            KeyboardFactory.mainMenu());
+                "✅ Расход сохранён!\n\n" +
+                "📝 " + parsed.description() + "\n" +
+                "💸 -" + fmt(parsed.amount()) + "\n" +
+                "🏷 " + categoryName + "\n" +
+                "💳 Баланс: " + fmt(user.getBalance()),
+                KeyboardFactory.mainMenu());
     }
 
     // ---- Income flow ----
@@ -111,8 +111,8 @@ public class MessageHandler {
     private void startIncome(long chatId, long telegramId, MonetkaBot bot) {
         stateService.setState(telegramId, UserState.WAITING_INCOME);
         bot.sendMessage(chatId,
-            "Введи доход в формате:\n`зарплата 150000`",
-            KeyboardFactory.cancelOnly());
+                "Введи доход в формате:\n`зарплата 150000`",
+                KeyboardFactory.cancelOnly());
     }
 
     private void handleIncomeInput(User user, String text, long chatId,
@@ -127,11 +127,11 @@ public class MessageHandler {
         stateService.reset(telegramId);
 
         bot.sendMessage(chatId,
-            "✅ Доход сохранён!\n\n" +
-            "📝 " + parsed.description() + "\n" +
-            "💰 +" + fmt(parsed.amount()) + "\n" +
-            "💳 Баланс: " + fmt(user.getBalance()),
-            KeyboardFactory.mainMenu());
+                "✅ Доход сохранён!\n\n" +
+                "📝 " + parsed.description() + "\n" +
+                "💰 +" + fmt(parsed.amount()) + "\n" +
+                "💳 Баланс: " + fmt(user.getBalance()),
+                KeyboardFactory.mainMenu());
     }
 
     // ---- Subscription wizard ----
@@ -139,7 +139,7 @@ public class MessageHandler {
     private void startSubscription(long chatId, long telegramId, MonetkaBot bot) {
         stateService.setState(telegramId, UserState.WAITING_SUB_NAME);
         bot.sendMessage(chatId, "Введи название подписки\n(например: Netflix):",
-            KeyboardFactory.cancelOnly());
+                KeyboardFactory.cancelOnly());
     }
 
     private void handleSubName(User user, String text, long chatId,
@@ -177,11 +177,11 @@ public class MessageHandler {
             stateService.reset(telegramId);
 
             bot.sendMessage(chatId,
-                "✅ Подписка добавлена!\n\n" +
-                "📝 " + sub.getName() + "\n" +
-                "💸 " + fmt(sub.getAmount()) + "/мес\n" +
-                "📅 Каждое " + day + " число",
-                KeyboardFactory.mainMenu());
+                    "✅ Подписка добавлена!\n\n" +
+                    "📝 " + sub.getName() + "\n" +
+                    "💸 " + fmt(sub.getAmount()) + "/мес\n" +
+                    "📅 Каждое " + day + " число",
+                    KeyboardFactory.mainMenu());
 
         } catch (NumberFormatException e) {
             bot.sendText(chatId, "Введи число от 1 до 28");
@@ -192,20 +192,20 @@ public class MessageHandler {
 
     private void showStats(User user, long chatId, MonetkaBot bot) {
         bot.sendMessage(chatId,
-            reportService.buildMonthStats(user),
-            KeyboardFactory.statsPeriod());
+                reportService.buildMonthStats(user),
+                KeyboardFactory.statsPeriod());
     }
 
     private void showBalance(User user, long chatId, MonetkaBot bot) {
         bot.sendMarkdown(chatId,
-            "💳 *Твой баланс:*\n\n*" + fmt(user.getBalance()) + "*");
+                "💳 *Твой баланс:*\n\n*" + fmt(user.getBalance()) + "*");
     }
 
     private void showSubscriptions(User user, long chatId, MonetkaBot bot) {
         List<Subscription> subs = subscriptionService.getActiveSubscriptions(user);
         bot.sendMessage(chatId,
-            reportService.buildSubscriptionsList(user),
-            KeyboardFactory.subscriptionActions(subs));
+                reportService.buildSubscriptionsList(user),
+                KeyboardFactory.subscriptionActions(subs));
     }
 
     // ---- Helpers ----
@@ -220,7 +220,7 @@ public class MessageHandler {
         try {
             BigDecimal amount = new BigDecimal(tokens[tokens.length - 1].replace(",", "."));
             String description = String.join(" ",
-                java.util.Arrays.copyOf(tokens, tokens.length - 1)).trim();
+                    java.util.Arrays.copyOf(tokens, tokens.length - 1)).trim();
             if (description.isBlank()) description = "Без описания";
             return new ParseResult(description, amount);
         } catch (NumberFormatException ignored) {}
@@ -229,7 +229,7 @@ public class MessageHandler {
         try {
             BigDecimal amount = new BigDecimal(tokens[0].replace(",", "."));
             String description = String.join(" ",
-                java.util.Arrays.copyOfRange(tokens, 1, tokens.length)).trim();
+                    java.util.Arrays.copyOfRange(tokens, 1, tokens.length)).trim();
             if (description.isBlank()) description = "Без описания";
             return new ParseResult(description, amount);
         } catch (NumberFormatException ignored) {}
@@ -254,5 +254,14 @@ public class MessageHandler {
             """;
     }
 
-    private record ParseResult(String description, BigDecimal amount) {}
+    private static final class ParseResult {
+        final String description;
+        final BigDecimal amount;
+        ParseResult(String description, BigDecimal amount) {
+            this.description = description;
+            this.amount = amount;
+        }
+        String description() { return description; }
+        BigDecimal amount()  { return amount; }
+    }
 }
