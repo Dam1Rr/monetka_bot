@@ -4,6 +4,7 @@ import com.monetka.model.Transaction;
 import com.monetka.model.User;
 import com.monetka.model.enums.TransactionType;
 import com.monetka.repository.TransactionRepository;
+import com.monetka.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -17,11 +18,14 @@ public class TransactionService {
     private static final Logger log = LoggerFactory.getLogger(TransactionService.class);
 
     private final TransactionRepository    transactionRepository;
+    private final UserRepository           userRepository;
     private final CategoryDetectionService detectionService;
 
     public TransactionService(TransactionRepository transactionRepository,
+                              UserRepository userRepository,
                               CategoryDetectionService detectionService) {
         this.transactionRepository = transactionRepository;
+        this.userRepository        = userRepository;
         this.detectionService      = detectionService;
     }
 
@@ -38,7 +42,9 @@ public class TransactionService {
         tx.setCategory(result.getCategory());
         tx.setSubcategory(result.getSubcategory());
 
+        // BUG FIX: update balance AND persist the user
         user.setBalance(user.getBalance().subtract(amount));
+        userRepository.save(user);
 
         log.info("Expense: user={} amount={} category={} confidence={}",
                 user.getTelegramId(), amount,
@@ -55,7 +61,11 @@ public class TransactionService {
         tx.setAmount(amount);
         tx.setDescription(description);
         tx.setType(TransactionType.INCOME);
+
+        // BUG FIX: persist balance update
         user.setBalance(user.getBalance().add(amount));
+        userRepository.save(user);
+
         return transactionRepository.save(tx);
     }
 }

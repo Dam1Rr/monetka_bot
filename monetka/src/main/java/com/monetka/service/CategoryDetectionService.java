@@ -59,31 +59,39 @@ public class CategoryDetectionService {
         if (normalized.isBlank()) return defaultResult();
         String[] tokens = normalized.split("\\s+");
 
-        // 1. Личные обученные слова
+        // 1. Personal learned keywords — ALWAYS use, even if mapped to "Прочее"
         for (String token : tokens) {
             List<LearnedKeyword> learned = learnedKeywordRepository.findByKeywordAndUser(token, userId);
             if (!learned.isEmpty()) {
                 LearnedKeyword lk = learned.get(0);
-                return new DetectionResult(lk.getCategory(), lk.getSubcategory(), 1.0, token);
+                // Read isDefault while session is open
+                boolean isDefault = lk.getCategory() != null && lk.getCategory().isDefault();
+                return new DetectionResult(lk.getCategory(), lk.getSubcategory(), 1.0, token, true, isDefault);
             }
         }
 
-        // 2. Точное совпадение
+        // 2. Exact keyword match
         for (String token : tokens) {
             Subcategory sub = keywordIndex.get(token);
-            if (sub != null) return new DetectionResult(sub.getCategory(), sub, 1.0, token);
+            if (sub != null) {
+                boolean isDefault = sub.getCategory().isDefault();
+                return new DetectionResult(sub.getCategory(), sub, 1.0, token, false, isDefault);
+            }
         }
 
-        // 3. Фраза
+        // 3. Multi-word phrase
         for (int len = tokens.length; len >= 2; len--) {
             for (int i = 0; i <= tokens.length - len; i++) {
                 String phrase = String.join(" ", Arrays.copyOfRange(tokens, i, i + len));
                 Subcategory sub = keywordIndex.get(phrase);
-                if (sub != null) return new DetectionResult(sub.getCategory(), sub, 1.0, phrase);
+                if (sub != null) {
+                    boolean isDefault = sub.getCategory().isDefault();
+                    return new DetectionResult(sub.getCategory(), sub, 1.0, phrase, false, isDefault);
+                }
             }
         }
 
-        // 4. Подстрока
+        // 4. Substring match
         for (String token : tokens) {
             for (Map.Entry<String, Subcategory> entry : keywordIndex.entrySet()) {
                 String kw = entry.getKey();
@@ -91,16 +99,19 @@ public class CategoryDetectionService {
                     double conf = (double) Math.min(token.length(), kw.length()) / Math.max(token.length(), kw.length());
                     if (conf >= 0.75) {
                         Subcategory sub = entry.getValue();
-                        return new DetectionResult(sub.getCategory(), sub, conf, token);
+                        boolean isDefault = sub.getCategory().isDefault();
+                        return new DetectionResult(sub.getCategory(), sub, conf, token, false, isDefault);
                     }
                 }
             }
         }
 
-        // 5. Fuzzy
+        // 5. Fuzzy Levenshtein
         BestMatch best = findBestFuzzyMatch(tokens);
         if (best != null) {
-            return new DetectionResult(best.subcategory.getCategory(), best.subcategory, best.confidence, best.token);
+            boolean isDefault = best.subcategory.getCategory().isDefault();
+            return new DetectionResult(best.subcategory.getCategory(), best.subcategory,
+                    best.confidence, best.token, false, isDefault);
         }
 
         return defaultResult();
@@ -140,7 +151,11 @@ public class CategoryDetectionService {
 
     public List<Category> getAllCategories() { return categoryRepository.findAll(); }
 
-    private DetectionResult defaultResult() { return new DetectionResult(defaultCategory, null, 0.0, null); }
+    // ================================================================
+
+    private DetectionResult defaultResult() {
+        return new DetectionResult(defaultCategory, null, 0.0, null, false, true);
+    }
 
     private BestMatch findBestFuzzyMatch(String[] tokens) {
         BestMatch best = null;
@@ -174,26 +189,45 @@ public class CategoryDetectionService {
     }
 
     // ================================================================
+    // DetectionResult — immutable, all fields read while session is open
+    // ================================================================
 
     public static class DetectionResult {
         private final Category    category;
         private final Subcategory subcategory;
         private final double      confidence;
         private final String      matchedKeyword;
+        private final boolean     fromLearned;    // came from user's personal learned keywords
+        private final boolean     defaultCategory; // is_default=true (read inside transaction)
 
-        public DetectionResult(Category cat, Subcategory sub, double confidence, String matched) {
-            this.category       = cat;
-            this.subcategory    = sub;
-            this.confidence     = confidence;
-            this.matchedKeyword = matched;
+        public DetectionResult(Category cat, Subcategory sub, double confidence,
+                               String matched, boolean fromLearned, boolean defaultCategory) {
+            this.category        = cat;
+            this.subcategory     = sub;
+            this.confidence      = confidence;
+            this.matchedKeyword  = matched;
+            this.fromLearned     = fromLearned;
+            this.defaultCategory = defaultCategory;
         }
 
-        public Category    getCategory()       { return category; }
-        public Subcategory getSubcategory()    { return subcategory; }
-        public double      getConfidence()     { return confidence; }
-        public String      getMatchedKeyword() { return matchedKeyword; }
+        public Category    getCategory()        { return category; }
+        public Subcategory getSubcategory()     { return subcategory; }
+        public double      getConfidence()      { return confidence; }
+        public String      getMatchedKeyword()  { return matchedKeyword; }
+        public boolean     isFromLearned()      { return fromLearned; }
+        public boolean     isDefaultCategory()  { return defaultCategory; }
 
+        /** Confident enough to auto-categorize without asking the user */
         public boolean isConfident() { return confidence >= 0.65; }
+
+        /**
+         * Should we skip the "choose category" prompt?
+         * Yes if: confident match AND (not default category OR came from learned keywords)
+         * Learned keywords always auto-categorize, even if mapped to "Прочее"
+         */
+        public boolean shouldAutoSave() {
+            return isConfident() && category != null && (fromLearned || !defaultCategory);
+        }
 
         public String display() {
             if (category == null) return "💰 Прочее";
