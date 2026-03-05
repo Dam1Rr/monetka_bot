@@ -24,17 +24,17 @@ public class SubscriptionService {
     @Transactional
     public Subscription create(User user, String name, BigDecimal amount,
                                LocalDate startDate, LocalDate endDate) {
-        Category category = categoryDetectionService.detect(name);
+        Category category = categoryDetectionService
+                .detectCategory(name, user.getTelegramId()).getCategory();
 
-        Subscription sub = Subscription.builder()
-                .user(user)
-                .name(name)
-                .amount(amount)
-                .category(category)
-                .startDate(startDate)
-                .endDate(endDate)
-                .active(true)
-                .build();
+        Subscription sub = new Subscription();
+        sub.setUser(user);
+        sub.setName(name);
+        sub.setAmount(amount);
+        sub.setCategory(category);
+        sub.setStartDate(startDate);
+        sub.setEndDate(endDate);
+        sub.setActive(true);
 
         Subscription saved = subscriptionRepository.save(sub);
         log.info("Subscription created: '{}' {} for user {}", name, amount, user.getTelegramId());

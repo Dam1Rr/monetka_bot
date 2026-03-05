@@ -18,19 +18,11 @@ public class UserService {
 
     private final UserRepository userRepository;
 
-    // ---- Registration ----
-
     @Transactional
     public User registerOrGet(Long telegramId, String username,
                               String firstName, String lastName) {
         return userRepository.findByTelegramId(telegramId).orElseGet(() -> {
-            User newUser = User.builder()
-                    .telegramId(telegramId)
-                    .username(username)
-                    .firstName(firstName)
-                    .lastName(lastName)
-                    .status(UserStatus.PENDING)
-                    .build();
+            User newUser = User.create(telegramId, username, firstName, lastName);
             User saved = userRepository.save(newUser);
             log.info("New user registered: {} ({})", saved.getDisplayName(), telegramId);
             return saved;
@@ -48,8 +40,6 @@ public class UserService {
                 .map(u -> u.getStatus() == UserStatus.APPROVED)
                 .orElse(false);
     }
-
-    // ---- Admin actions ----
 
     @Transactional
     public boolean approveUser(Long telegramId) {
@@ -80,8 +70,6 @@ public class UserService {
             return true;
         }).orElse(false);
     }
-
-    // ---- Queries by status ----
 
     @Transactional(readOnly = true)
     public List<User> getPendingUsers() {

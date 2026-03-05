@@ -8,8 +8,8 @@ import java.util.List;
 
 @Entity
 @Table(name = "categories")
-@Data
-@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(of = "id")
@@ -26,11 +26,9 @@ public class Category {
     private String emoji;
 
     @Column(name = "is_default")
-    @Builder.Default
     private boolean isDefault = false;
 
     @OneToMany(mappedBy = "category", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
-    @Builder.Default
     private List<Subcategory> subcategories = new ArrayList<>();
 
     public String getDisplayName() {

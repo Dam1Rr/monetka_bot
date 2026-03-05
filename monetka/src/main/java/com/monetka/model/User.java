@@ -9,8 +9,8 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "users")
-@Data
-@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(of = "id")
@@ -35,11 +35,9 @@ public class User {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    @Builder.Default
     private UserStatus status = UserStatus.PENDING;
 
     @Column(name = "balance", nullable = false)
-    @Builder.Default
     private BigDecimal balance = BigDecimal.ZERO;
 
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -48,7 +46,18 @@ public class User {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    // ----------------------------------------------------------------
+    /** Конструктор для регистрации */
+    public static User create(Long telegramId, String username,
+                              String firstName, String lastName) {
+        User u = new User();
+        u.telegramId = telegramId;
+        u.username   = username;
+        u.firstName  = firstName;
+        u.lastName   = lastName;
+        u.status     = UserStatus.PENDING;
+        u.balance    = BigDecimal.ZERO;
+        return u;
+    }
 
     public String getDisplayName() {
         if (firstName != null && !firstName.isBlank()) return firstName;

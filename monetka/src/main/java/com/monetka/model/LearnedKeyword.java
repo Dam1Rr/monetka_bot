@@ -5,17 +5,14 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 
-/**
- * Слова которые пользователь обучил бота вручную.
- * Хранятся в БД и имеют приоритет над словарём по умолчанию.
- */
 @Entity
 @Table(name = "learned_keywords",
         uniqueConstraints = @UniqueConstraint(columnNames = {"keyword", "user_id"}))
-@Data
-@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(of = "id")
 public class LearnedKeyword {
 
     @Id
@@ -33,12 +30,10 @@ public class LearnedKeyword {
     @JoinColumn(name = "subcategory_id")
     private Subcategory subcategory;
 
-    /** null = глобальное, не null = персональное для пользователя */
     @Column(name = "user_id")
     private Long userId;
 
     @Column(name = "use_count")
-    @Builder.Default
     private int useCount = 1;
 
     @Column(name = "created_at")

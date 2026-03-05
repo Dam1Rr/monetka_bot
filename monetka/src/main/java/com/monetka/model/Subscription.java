@@ -6,11 +6,12 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 @Entity
 @Table(name = "subscriptions")
-@Data
-@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(of = "id")
@@ -35,20 +36,14 @@ public class Subscription {
     @JoinColumn(name = "category_id")
     private Category category;
 
-    /** Дата начала подписки */
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
 
-    /** Дата окончания подписки (null = бессрочная) */
     @Column(name = "end_date")
     private LocalDate endDate;
 
     @Column(name = "active", nullable = false)
-    @Builder.Default
     private boolean active = true;
-
-    public boolean isActive() { return active; }
-    public void setActive(boolean active) { this.active = active; }
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -58,14 +53,12 @@ public class Subscription {
         if (createdAt == null) createdAt = LocalDateTime.now();
     }
 
-    /** Дней до окончания. null если бессрочная или уже истекла */
     public Long daysUntilExpiry() {
         if (endDate == null) return null;
-        long days = java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), endDate);
+        long days = ChronoUnit.DAYS.between(LocalDate.now(), endDate);
         return days >= 0 ? days : null;
     }
 
-    /** Истекла ли подписка */
     public boolean isExpired() {
         return endDate != null && LocalDate.now().isAfter(endDate);
     }

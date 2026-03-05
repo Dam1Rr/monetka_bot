@@ -8,8 +8,8 @@ import java.util.List;
 
 @Entity
 @Table(name = "subcategories")
-@Data
-@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(of = "id")
@@ -35,7 +35,6 @@ public class Subcategory {
             joinColumns = @JoinColumn(name = "subcategory_id")
     )
     @Column(name = "keyword")
-    @Builder.Default
     private List<String> keywords = new ArrayList<>();
 
     public String getDisplayName() {
