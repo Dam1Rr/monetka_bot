@@ -14,6 +14,8 @@ import com.monetka.repository.TransactionRepository;
 import com.monetka.service.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
@@ -27,6 +29,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class CallbackHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(CallbackHandler.class);
     private final UserService              userService;
     private final UserStateService         stateService;
     private final TransactionService       transactionService;

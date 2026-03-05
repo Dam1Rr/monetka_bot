@@ -47,6 +47,9 @@ public class Subscription {
     @Builder.Default
     private boolean active = true;
 
+    public boolean isActive() { return active; }
+    public void setActive(boolean active) { this.active = active; }
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

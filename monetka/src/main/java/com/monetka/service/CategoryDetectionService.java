@@ -7,7 +7,6 @@ import com.monetka.repository.CategoryRepository;
 import com.monetka.repository.LearnedKeywordRepository;
 import com.monetka.repository.SubcategoryRepository;
 import jakarta.annotation.PostConstruct;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -256,7 +255,6 @@ public class CategoryDetectionService {
     // Inner classes
     // ================================================================
 
-    @Getter
     public static class DetectionResult {
         private final Category    category;
         private final Subcategory subcategory;
@@ -270,6 +268,11 @@ public class CategoryDetectionService {
             this.confidence     = confidence;
             this.matchedKeyword = matched;
         }
+
+        public Category    getCategory()       { return category; }
+        public Subcategory getSubcategory()    { return subcategory; }
+        public double      getConfidence()     { return confidence; }
+        public String      getMatchedKeyword() { return matchedKeyword; }
 
         public boolean isConfident() {
             return confidence >= 0.65;
