@@ -1,6 +1,5 @@
 -- Очищаем старые данные
 DELETE FROM category_keywords;
-DELETE FROM subcategories CASCADE;
 DELETE FROM categories CASCADE;
 
 -- Создаём таблицу подкатегорий если нет
