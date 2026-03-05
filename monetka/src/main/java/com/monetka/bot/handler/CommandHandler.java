@@ -1,5 +1,6 @@
 package com.monetka.bot.handler;
 
+import com.monetka.admin.AdminHandler;
 import com.monetka.bot.MonetkaBot;
 import com.monetka.bot.keyboard.KeyboardFactory;
 import com.monetka.config.BotProperties;
@@ -24,15 +25,17 @@ public class CommandHandler {
     private final ReportService       reportService;
     private final SubscriptionService subscriptionService;
     private final BotProperties       botProperties;
+    private final AdminHandler        adminHandler;
 
     public CommandHandler(UserService userService, UserStateService stateService,
                           ReportService reportService, SubscriptionService subscriptionService,
-                          BotProperties botProperties) {
+                          BotProperties botProperties, AdminHandler adminHandler) {
         this.userService         = userService;
         this.stateService        = stateService;
         this.reportService       = reportService;
         this.subscriptionService = subscriptionService;
         this.botProperties       = botProperties;
+        this.adminHandler        = adminHandler;
     }
 
     public void handle(Message message, MonetkaBot bot) {
@@ -48,6 +51,8 @@ public class CommandHandler {
             case "/balance"       -> handleBalance(chatId, telegramId, bot);
             case "/stats"         -> handleStats(chatId, telegramId, bot);
             case "/subscriptions" -> handleSubscriptions(chatId, telegramId, bot);
+            case "/admin"         -> adminHandler.handleCommand(message, bot);
+            // Legacy text-based com.monetka.admin commands (kept for backward compat)
             case "/pending"       -> handlePending(chatId, telegramId, bot);
             case "/blocked"       -> handleBlockedList(chatId, telegramId, bot);
             case "/approve"       -> handleApprove(text, chatId, telegramId, bot);
@@ -59,8 +64,7 @@ public class CommandHandler {
 
     private void handleStart(Message message, long chatId, long telegramId, MonetkaBot bot) {
         org.telegram.telegrambots.meta.api.objects.User from = message.getFrom();
-        User user = userService.registerOrGet(
-                telegramId, from.getUserName(), from.getFirstName(), from.getLastName());
+        User user = userService.registerOrGet(telegramId, from.getUserName(), from.getFirstName(), from.getLastName());
         stateService.reset(telegramId);
 
         switch (user.getStatus()) {
@@ -77,10 +81,12 @@ public class CommandHandler {
 
     private void handleHelp(long chatId, long telegramId, MonetkaBot bot) {
         if (!checkApproved(chatId, telegramId, bot)) return;
+        String adminHint = adminHandler.isAdmin(telegramId) ? "\n\n🛡 *Админ:* /com.monetka.admin" : "";
         bot.sendMarkdown(chatId,
                 "*Monetka — финансовый помощник* 💰\n\n" +
                         "*Добавить расход / доход:*\nНажми кнопку → введи `название сумма`\nПример: `шаурма 300`\n\n" +
-                        "*Команды:*\n/balance — текущий баланс\n/stats — статистика\n/subscriptions — подписки\n/help — справка");
+                        "*Команды:*\n/balance — текущий баланс\n/stats — статистика\n/subscriptions — подписки\n/help — справка" +
+                        adminHint);
     }
 
     private void handleCancel(long chatId, long telegramId, MonetkaBot bot) {
@@ -108,6 +114,10 @@ public class CommandHandler {
                     KeyboardFactory.subscriptionActions(subs));
         });
     }
+
+    // ================================================================
+    // Legacy text-based com.monetka.admin commands (still functional via chat)
+    // ================================================================
 
     private void handlePending(long chatId, long telegramId, MonetkaBot bot) {
         if (!checkAdmin(chatId, telegramId, bot)) return;
@@ -140,8 +150,6 @@ public class CommandHandler {
         if (userService.approveUser(targetId)) {
             bot.sendText(chatId, "✅ Пользователь " + targetId + " одобрен.");
             bot.sendMessage(targetId, "✅ *Добро пожаловать в Monetka!*\nДоступ подтверждён 🎉", KeyboardFactory.mainMenu());
-        } else {
-            bot.sendText(chatId, "Пользователь не найден.");
         }
     }
 
@@ -174,16 +182,14 @@ public class CommandHandler {
 
     private boolean checkApproved(long chatId, long telegramId, MonetkaBot bot) {
         if (!userService.isApproved(telegramId)) {
-            bot.sendText(chatId, "⏳ Доступ не подтверждён.");
-            return false;
+            bot.sendText(chatId, "⏳ Доступ не подтверждён."); return false;
         }
         return true;
     }
 
     private boolean checkAdmin(long chatId, long telegramId, MonetkaBot bot) {
         if (!botProperties.getAdminIds().contains(telegramId)) {
-            bot.sendText(chatId, "⛔ Нет доступа.");
-            return false;
+            bot.sendText(chatId, "⛔ Нет доступа."); return false;
         }
         return true;
     }
@@ -200,7 +206,5 @@ public class CommandHandler {
         return text.trim().split("\\s+")[0].split("@")[0].toLowerCase();
     }
 
-    private String fmt(BigDecimal amount) {
-        return String.format("%,.0f сом", amount);
-    }
+    private String fmt(BigDecimal amount) { return String.format("%,.0f сом", amount); }
 }

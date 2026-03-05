@@ -16,4 +16,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByTelegramId(Long telegramId);
 
     List<User> findAllByStatus(UserStatus status);
+
+    /** For com.monetka.admin statistics panel */
+    long countByStatus(UserStatus status);
 }

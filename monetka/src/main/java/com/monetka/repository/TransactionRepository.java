@@ -20,10 +20,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     List<Transaction> findByUserAndTypeOrderByCreatedAtDesc(User user, TransactionType type);
 
     List<Transaction> findByUserAndCreatedAtBetweenOrderByCreatedAtDesc(
-        User user,
-        LocalDateTime from,
-        LocalDateTime to
-    );
+            User user, LocalDateTime from, LocalDateTime to);
 
     @Query("""
         SELECT t FROM Transaction t
@@ -33,11 +30,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         ORDER BY t.createdAt DESC
     """)
     List<Transaction> findByUserAndTypeAndPeriod(
-        @Param("user") User user,
-        @Param("type") TransactionType type,
-        @Param("from") LocalDateTime from,
-        @Param("to")   LocalDateTime to
-    );
+            @Param("user") User user,
+            @Param("type") TransactionType type,
+            @Param("from") LocalDateTime from,
+            @Param("to")   LocalDateTime to);
 
     @Query("""
         SELECT COALESCE(SUM(t.amount), 0)
@@ -47,11 +43,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
           AND t.createdAt BETWEEN :from AND :to
     """)
     BigDecimal sumByUserAndTypeAndPeriod(
-        @Param("user") User user,
-        @Param("type") TransactionType type,
-        @Param("from") LocalDateTime from,
-        @Param("to")   LocalDateTime to
-    );
+            @Param("user") User user,
+            @Param("type") TransactionType type,
+            @Param("from") LocalDateTime from,
+            @Param("to")   LocalDateTime to);
 
     @Query("""
         SELECT t.category.name, t.category.emoji, SUM(t.amount)
@@ -63,8 +58,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         ORDER BY SUM(t.amount) DESC
     """)
     List<Object[]> sumExpensesByCategoryAndPeriod(
-        @Param("user") User user,
-        @Param("from") LocalDateTime from,
-        @Param("to")   LocalDateTime to
-    );
+            @Param("user") User user,
+            @Param("from") LocalDateTime from,
+            @Param("to")   LocalDateTime to);
+
+    /** Global sum of all expenses — used in com.monetka.admin statistics */
+    @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.type = 'EXPENSE'")
+    BigDecimal sumAllExpenses();
 }

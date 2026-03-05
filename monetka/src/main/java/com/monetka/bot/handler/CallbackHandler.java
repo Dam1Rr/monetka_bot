@@ -1,5 +1,6 @@
 package com.monetka.bot.handler;
 
+import com.monetka.admin.AdminHandler;
 import com.monetka.bot.MonetkaBot;
 import com.monetka.bot.keyboard.KeyboardFactory;
 import com.monetka.config.BotProperties;
@@ -37,12 +38,14 @@ public class CallbackHandler {
     private final SubcategoryRepository    subcategoryRepository;
     private final TransactionRepository    transactionRepository;
     private final BotProperties            botProperties;
+    private final AdminHandler             adminHandler;
 
     public CallbackHandler(UserService userService, UserStateService stateService,
                            TransactionService transactionService, SubscriptionService subscriptionService,
                            ReportService reportService, CategoryDetectionService detectionService,
                            CategoryRepository categoryRepository, SubcategoryRepository subcategoryRepository,
-                           TransactionRepository transactionRepository, BotProperties botProperties) {
+                           TransactionRepository transactionRepository, BotProperties botProperties,
+                           AdminHandler adminHandler) {
         this.userService          = userService;
         this.stateService         = stateService;
         this.transactionService   = transactionService;
@@ -53,6 +56,7 @@ public class CallbackHandler {
         this.subcategoryRepository= subcategoryRepository;
         this.transactionRepository= transactionRepository;
         this.botProperties        = botProperties;
+        this.adminHandler         = adminHandler;
     }
 
     public void handle(CallbackQuery callback, MonetkaBot bot) {
@@ -60,6 +64,13 @@ public class CallbackHandler {
         long   telegramId = callback.getFrom().getId();
         String data       = callback.getData();
 
+        // ── Admin panel callbacks ─────────────────────────────────
+        if (data.startsWith("adm:")) {
+            adminHandler.handleCallback(callback, bot);
+            return;
+        }
+
+        // ── Regular user callbacks ────────────────────────────────
         answerCallback(callback.getId(), bot);
 
         Optional<User> userOpt = userService.findByTelegramId(telegramId);
@@ -76,6 +87,10 @@ public class CallbackHandler {
         else if (data.startsWith("subcat:"))       handleSubcategoryChoice(user, data, chatId, telegramId, bot);
         else log.warn("Unknown callback: {}", data);
     }
+
+    // ================================================================
+    // Manual category selection
+    // ================================================================
 
     private void handleCategoryChoice(User user, String data, long chatId, long telegramId, MonetkaBot bot) {
         long catId = Long.parseLong(data.split(":")[1]);
@@ -134,12 +149,16 @@ public class CallbackHandler {
                 KeyboardFactory.mainMenu());
     }
 
+    // ================================================================
+    // Legacy com.monetka.admin callbacks (from old inline buttons in CommandHandler)
+    // ================================================================
+
     private void handleApprove(String data, long chatId, long telegramId, MonetkaBot bot) {
         if (!isAdmin(telegramId)) return;
         long targetId = parseId(data);
         if (userService.approveUser(targetId)) {
             bot.sendText(chatId, "✅ Пользователь " + targetId + " одобрен.");
-            bot.sendMessage(targetId, "✅ *Добро пожаловать в Monetka!*\n\nТвой доступ подтверждён 🎉", KeyboardFactory.mainMenu());
+            bot.sendMessage(targetId, "✅ *Добро пожаловать в Monetka!*\nДоступ подтверждён 🎉", KeyboardFactory.mainMenu());
         }
     }
 
@@ -161,6 +180,10 @@ public class CallbackHandler {
         }
     }
 
+    // ================================================================
+    // Subscriptions
+    // ================================================================
+
     private void handleCancelSub(User user, String data, long chatId, MonetkaBot bot) {
         long subId = parseId(data);
         if (subscriptionService.cancel(user, subId)) {
@@ -177,6 +200,10 @@ public class CallbackHandler {
         bot.sendMessage(chatId, "Введи название подписки:", KeyboardFactory.cancelMenu());
     }
 
+    // ================================================================
+    // Statistics
+    // ================================================================
+
     private void handleStats(User user, String data, long chatId, MonetkaBot bot) {
         String period = data.split(":")[1];
         String report = switch (period) {
@@ -187,6 +214,10 @@ public class CallbackHandler {
         };
         bot.sendMessage(chatId, report, KeyboardFactory.statsPeriod());
     }
+
+    // ================================================================
+    // Helpers
+    // ================================================================
 
     private boolean isAdmin(long telegramId) {
         return botProperties.getAdminIds().contains(telegramId);
