@@ -4,20 +4,26 @@ import com.monetka.model.Transaction;
 import com.monetka.model.User;
 import com.monetka.model.enums.TransactionType;
 import com.monetka.repository.TransactionRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 
-@Slf4j
 @Service
-@RequiredArgsConstructor
 public class TransactionService {
+
+    private static final Logger log = LoggerFactory.getLogger(TransactionService.class);
 
     private final TransactionRepository    transactionRepository;
     private final CategoryDetectionService detectionService;
+
+    public TransactionService(TransactionRepository transactionRepository,
+                              CategoryDetectionService detectionService) {
+        this.transactionRepository = transactionRepository;
+        this.detectionService      = detectionService;
+    }
 
     @Transactional
     public Transaction addExpense(User user, BigDecimal amount, String description) {
@@ -49,7 +55,6 @@ public class TransactionService {
         tx.setAmount(amount);
         tx.setDescription(description);
         tx.setType(TransactionType.INCOME);
-
         user.setBalance(user.getBalance().add(amount));
         return transactionRepository.save(tx);
     }

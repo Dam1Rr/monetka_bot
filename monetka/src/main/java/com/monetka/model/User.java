@@ -2,19 +2,12 @@ package com.monetka.model;
 
 import com.monetka.model.enums.UserStatus;
 import jakarta.persistence.*;
-import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "users")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@EqualsAndHashCode(of = "id")
-@ToString(exclude = {"transactions", "subscriptions"})
 public class User {
 
     @Id
@@ -46,9 +39,9 @@ public class User {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    /** Конструктор для регистрации */
-    public static User create(Long telegramId, String username,
-                              String firstName, String lastName) {
+    public User() {}
+
+    public static User create(Long telegramId, String username, String firstName, String lastName) {
         User u = new User();
         u.telegramId = telegramId;
         u.username   = username;
@@ -59,6 +52,24 @@ public class User {
         return u;
     }
 
+    public Long getId()                         { return id; }
+    public Long getTelegramId()                 { return telegramId; }
+    public String getUsername()                 { return username; }
+    public String getFirstName()                { return firstName; }
+    public String getLastName()                 { return lastName; }
+    public UserStatus getStatus()               { return status; }
+    public BigDecimal getBalance()              { return balance; }
+    public LocalDateTime getCreatedAt()         { return createdAt; }
+    public LocalDateTime getUpdatedAt()         { return updatedAt; }
+
+    public void setId(Long id)                          { this.id = id; }
+    public void setTelegramId(Long telegramId)          { this.telegramId = telegramId; }
+    public void setUsername(String username)            { this.username = username; }
+    public void setFirstName(String firstName)          { this.firstName = firstName; }
+    public void setLastName(String lastName)            { this.lastName = lastName; }
+    public void setStatus(UserStatus status)            { this.status = status; }
+    public void setBalance(BigDecimal balance)          { this.balance = balance; }
+
     public String getDisplayName() {
         if (firstName != null && !firstName.isBlank()) return firstName;
         if (username  != null && !username.isBlank())  return "@" + username;
@@ -66,12 +77,8 @@ public class User {
     }
 
     @PrePersist
-    void prePersist() {
-        createdAt = LocalDateTime.now();
-    }
+    void prePersist() { createdAt = LocalDateTime.now(); }
 
     @PreUpdate
-    void preUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
+    void preUpdate()  { updatedAt = LocalDateTime.now(); }
 }

@@ -1,8 +1,6 @@
 package com.monetka.model;
 
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -10,12 +8,6 @@ import java.time.temporal.ChronoUnit;
 
 @Entity
 @Table(name = "subscriptions")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@EqualsAndHashCode(of = "id")
-@ToString(exclude = "user")
 public class Subscription {
 
     @Id
@@ -48,10 +40,26 @@ public class Subscription {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @PrePersist
-    void prePersist() {
-        if (createdAt == null) createdAt = LocalDateTime.now();
-    }
+    public Subscription() {}
+
+    public Long getId()              { return id; }
+    public User getUser()            { return user; }
+    public String getName()          { return name; }
+    public BigDecimal getAmount()    { return amount; }
+    public Category getCategory()    { return category; }
+    public LocalDate getStartDate()  { return startDate; }
+    public LocalDate getEndDate()    { return endDate; }
+    public boolean isActive()        { return active; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+
+    public void setId(Long id)              { this.id = id; }
+    public void setUser(User user)          { this.user = user; }
+    public void setName(String name)        { this.name = name; }
+    public void setAmount(BigDecimal a)     { this.amount = a; }
+    public void setCategory(Category c)     { this.category = c; }
+    public void setStartDate(LocalDate d)   { this.startDate = d; }
+    public void setEndDate(LocalDate d)     { this.endDate = d; }
+    public void setActive(boolean active)   { this.active = active; }
 
     public Long daysUntilExpiry() {
         if (endDate == null) return null;
@@ -62,4 +70,7 @@ public class Subscription {
     public boolean isExpired() {
         return endDate != null && LocalDate.now().isAfter(endDate);
     }
+
+    @PrePersist
+    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); }
 }

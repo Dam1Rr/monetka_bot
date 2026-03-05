@@ -2,19 +2,11 @@ package com.monetka.model;
 
 import com.monetka.model.enums.TransactionType;
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "transactions")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@EqualsAndHashCode(of = "id")
-@ToString(exclude = "user")
 public class Transaction {
 
     @Id
@@ -46,8 +38,25 @@ public class Transaction {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    public Transaction() {}
+
+    public Long getId()                  { return id; }
+    public User getUser()                { return user; }
+    public BigDecimal getAmount()        { return amount; }
+    public String getDescription()       { return description; }
+    public Category getCategory()        { return category; }
+    public Subcategory getSubcategory()  { return subcategory; }
+    public TransactionType getType()     { return type; }
+    public LocalDateTime getCreatedAt()  { return createdAt; }
+
+    public void setId(Long id)                      { this.id = id; }
+    public void setUser(User user)                  { this.user = user; }
+    public void setAmount(BigDecimal amount)        { this.amount = amount; }
+    public void setDescription(String description)  { this.description = description; }
+    public void setCategory(Category category)      { this.category = category; }
+    public void setSubcategory(Subcategory sub)     { this.subcategory = sub; }
+    public void setType(TransactionType type)       { this.type = type; }
+
     @PrePersist
-    void prePersist() {
-        if (createdAt == null) createdAt = LocalDateTime.now();
-    }
+    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); }
 }

@@ -4,8 +4,8 @@ import com.monetka.model.Category;
 import com.monetka.model.Subscription;
 import com.monetka.model.User;
 import com.monetka.repository.SubscriptionRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,13 +13,19 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-@Slf4j
 @Service
-@RequiredArgsConstructor
 public class SubscriptionService {
+
+    private static final Logger log = LoggerFactory.getLogger(SubscriptionService.class);
 
     private final SubscriptionRepository   subscriptionRepository;
     private final CategoryDetectionService categoryDetectionService;
+
+    public SubscriptionService(SubscriptionRepository subscriptionRepository,
+                               CategoryDetectionService categoryDetectionService) {
+        this.subscriptionRepository   = subscriptionRepository;
+        this.categoryDetectionService = categoryDetectionService;
+    }
 
     @Transactional
     public Subscription create(User user, String name, BigDecimal amount,
@@ -63,8 +69,6 @@ public class SubscriptionService {
 
     @Transactional(readOnly = true)
     public List<Subscription> getExpiringSoon(int days) {
-        LocalDate from = LocalDate.now();
-        LocalDate to   = from.plusDays(days);
-        return subscriptionRepository.findExpiringBetween(from, to);
+        return subscriptionRepository.findExpiringBetween(LocalDate.now(), LocalDate.now().plusDays(days));
     }
 }

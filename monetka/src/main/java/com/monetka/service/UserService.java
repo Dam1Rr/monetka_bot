@@ -3,27 +3,28 @@ package com.monetka.service;
 import com.monetka.model.User;
 import com.monetka.model.enums.UserStatus;
 import com.monetka.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
 
-@Slf4j
 @Service
-@RequiredArgsConstructor
 public class UserService {
 
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
     private final UserRepository userRepository;
 
+    public UserService(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
     @Transactional
-    public User registerOrGet(Long telegramId, String username,
-                              String firstName, String lastName) {
+    public User registerOrGet(Long telegramId, String username, String firstName, String lastName) {
         return userRepository.findByTelegramId(telegramId).orElseGet(() -> {
-            User newUser = User.create(telegramId, username, firstName, lastName);
-            User saved = userRepository.save(newUser);
+            User saved = userRepository.save(User.create(telegramId, username, firstName, lastName));
             log.info("New user registered: {} ({})", saved.getDisplayName(), telegramId);
             return saved;
         });
@@ -37,8 +38,7 @@ public class UserService {
     @Transactional(readOnly = true)
     public boolean isApproved(Long telegramId) {
         return userRepository.findByTelegramId(telegramId)
-                .map(u -> u.getStatus() == UserStatus.APPROVED)
-                .orElse(false);
+                .map(u -> u.getStatus() == UserStatus.APPROVED).orElse(false);
     }
 
     @Transactional
@@ -72,17 +72,11 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public List<User> getPendingUsers() {
-        return userRepository.findAllByStatus(UserStatus.PENDING);
-    }
+    public List<User> getPendingUsers()  { return userRepository.findAllByStatus(UserStatus.PENDING); }
 
     @Transactional(readOnly = true)
-    public List<User> getApprovedUsers() {
-        return userRepository.findAllByStatus(UserStatus.APPROVED);
-    }
+    public List<User> getApprovedUsers() { return userRepository.findAllByStatus(UserStatus.APPROVED); }
 
     @Transactional(readOnly = true)
-    public List<User> getBlockedUsers() {
-        return userRepository.findAllByStatus(UserStatus.BLOCKED);
-    }
+    public List<User> getBlockedUsers()  { return userRepository.findAllByStatus(UserStatus.BLOCKED); }
 }

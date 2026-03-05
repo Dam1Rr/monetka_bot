@@ -7,18 +7,18 @@ import com.monetka.repository.CategoryRepository;
 import com.monetka.repository.LearnedKeywordRepository;
 import com.monetka.repository.SubcategoryRepository;
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
 
-@Slf4j
 @Service
-@RequiredArgsConstructor
 public class CategoryDetectionService {
+
+    private static final Logger log = LoggerFactory.getLogger(CategoryDetectionService.class);
 
     private final CategoryRepository       categoryRepository;
     private final SubcategoryRepository    subcategoryRepository;
@@ -27,15 +27,18 @@ public class CategoryDetectionService {
     private final Map<String, Subcategory> keywordIndex = new HashMap<>();
     private Category defaultCategory;
 
-    // ================================================================
-    // Инициализация индекса
-    // ================================================================
+    public CategoryDetectionService(CategoryRepository categoryRepository,
+                                    SubcategoryRepository subcategoryRepository,
+                                    LearnedKeywordRepository learnedKeywordRepository) {
+        this.categoryRepository       = categoryRepository;
+        this.subcategoryRepository    = subcategoryRepository;
+        this.learnedKeywordRepository = learnedKeywordRepository;
+    }
 
     @PostConstruct
     public void buildIndex() {
         keywordIndex.clear();
         List<Category> all = categoryRepository.findAll();
-
         for (Category category : all) {
             if (category.isDefault()) defaultCategory = category;
             for (Subcategory sub : category.getSubcategories()) {
@@ -44,29 +47,21 @@ public class CategoryDetectionService {
                 }
             }
         }
-        log.info("Category index built: {} keywords across {} categories",
-                keywordIndex.size(), all.size());
+        log.info("Category index built: {} keywords across {} categories", keywordIndex.size(), all.size());
     }
 
     public void reload() { buildIndex(); }
 
-    // ================================================================
-    // Определение категории
-    // ================================================================
-
     @Transactional(readOnly = true)
     public DetectionResult detectCategory(String text, Long userId) {
         if (text == null || text.isBlank()) return defaultResult();
-
         String normalized = normalize(text);
         if (normalized.isBlank()) return defaultResult();
-
         String[] tokens = normalized.split("\\s+");
 
-        // 1. Персональные обученные слова
+        // 1. Личные обученные слова
         for (String token : tokens) {
-            List<LearnedKeyword> learned =
-                    learnedKeywordRepository.findByKeywordAndUser(token, userId);
+            List<LearnedKeyword> learned = learnedKeywordRepository.findByKeywordAndUser(token, userId);
             if (!learned.isEmpty()) {
                 LearnedKeyword lk = learned.get(0);
                 return new DetectionResult(lk.getCategory(), lk.getSubcategory(), 1.0, token);
@@ -79,7 +74,7 @@ public class CategoryDetectionService {
             if (sub != null) return new DetectionResult(sub.getCategory(), sub, 1.0, token);
         }
 
-        // 3. Фраза (например "burger king")
+        // 3. Фраза
         for (int len = tokens.length; len >= 2; len--) {
             for (int i = 0; i <= tokens.length - len; i++) {
                 String phrase = String.join(" ", Arrays.copyOfRange(tokens, i, i + len));
@@ -88,13 +83,12 @@ public class CategoryDetectionService {
             }
         }
 
-        // 4. Подстрочное вхождение
+        // 4. Подстрока
         for (String token : tokens) {
             for (Map.Entry<String, Subcategory> entry : keywordIndex.entrySet()) {
                 String kw = entry.getKey();
                 if (token.contains(kw) || kw.contains(token)) {
-                    double conf = (double) Math.min(token.length(), kw.length())
-                            / Math.max(token.length(), kw.length());
+                    double conf = (double) Math.min(token.length(), kw.length()) / Math.max(token.length(), kw.length());
                     if (conf >= 0.75) {
                         Subcategory sub = entry.getValue();
                         return new DetectionResult(sub.getCategory(), sub, conf, token);
@@ -103,28 +97,19 @@ public class CategoryDetectionService {
             }
         }
 
-        // 5. Fuzzy matching (Левенштейн ≤ 2)
-        BestMatch bestFuzzy = findBestFuzzyMatch(tokens);
-        if (bestFuzzy != null) {
-            Subcategory sub = bestFuzzy.subcategory;
-            return new DetectionResult(sub.getCategory(), sub, bestFuzzy.confidence, bestFuzzy.token);
+        // 5. Fuzzy
+        BestMatch best = findBestFuzzyMatch(tokens);
+        if (best != null) {
+            return new DetectionResult(best.subcategory.getCategory(), best.subcategory, best.confidence, best.token);
         }
 
         return defaultResult();
     }
 
-    // ================================================================
-    // Самообучение
-    // ================================================================
-
     @Transactional
-    public void learnKeyword(String word, Category category,
-                             Subcategory subcategory, Long userId) {
+    public void learnKeyword(String word, Category category, Subcategory subcategory, Long userId) {
         String kw = word.toLowerCase().trim();
-
-        Optional<LearnedKeyword> existing =
-                learnedKeywordRepository.findByKeywordAndUserId(kw, userId);
-
+        Optional<LearnedKeyword> existing = learnedKeywordRepository.findByKeywordAndUserId(kw, userId);
         if (existing.isPresent()) {
             LearnedKeyword lk = existing.get();
             lk.setCategory(category);
@@ -141,15 +126,9 @@ public class CategoryDetectionService {
             lk.setCreatedAt(LocalDateTime.now());
             learnedKeywordRepository.save(lk);
         }
-
-        log.info("Learned: '{}' → {}/{} for user {}",
-                kw, category.getName(),
+        log.info("Learned: '{}' → {}/{} for user {}", kw, category.getName(),
                 subcategory != null ? subcategory.getName() : "—", userId);
     }
-
-    // ================================================================
-    // Helpers
-    // ================================================================
 
     public String normalize(String text) {
         return text.toLowerCase()
@@ -159,13 +138,9 @@ public class CategoryDetectionService {
                 .trim();
     }
 
-    public List<Category> getAllCategories() {
-        return categoryRepository.findAll();
-    }
+    public List<Category> getAllCategories() { return categoryRepository.findAll(); }
 
-    private DetectionResult defaultResult() {
-        return new DetectionResult(defaultCategory, null, 0.0, null);
-    }
+    private DetectionResult defaultResult() { return new DetectionResult(defaultCategory, null, 0.0, null); }
 
     private BestMatch findBestFuzzyMatch(String[] tokens) {
         BestMatch best = null;
@@ -199,8 +174,6 @@ public class CategoryDetectionService {
     }
 
     // ================================================================
-    // Result classes
-    // ================================================================
 
     public static class DetectionResult {
         private final Category    category;
@@ -224,8 +197,7 @@ public class CategoryDetectionService {
 
         public String display() {
             if (category == null) return "💰 Прочее";
-            if (subcategory != null)
-                return category.getDisplayName() + " → " + subcategory.getDisplayName();
+            if (subcategory != null) return category.getDisplayName() + " → " + subcategory.getDisplayName();
             return category.getDisplayName();
         }
     }

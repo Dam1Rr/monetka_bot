@@ -5,26 +5,35 @@ import com.monetka.bot.keyboard.KeyboardFactory;
 import com.monetka.config.BotProperties;
 import com.monetka.model.Subscription;
 import com.monetka.model.User;
-import com.monetka.model.enums.UserStatus;
 import com.monetka.service.*;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.Message;
 
 import java.math.BigDecimal;
 import java.util.List;
 
-@Slf4j
 @Component
-@RequiredArgsConstructor
 public class CommandHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(CommandHandler.class);
 
     private final UserService         userService;
     private final UserStateService    stateService;
     private final ReportService       reportService;
     private final SubscriptionService subscriptionService;
     private final BotProperties       botProperties;
+
+    public CommandHandler(UserService userService, UserStateService stateService,
+                          ReportService reportService, SubscriptionService subscriptionService,
+                          BotProperties botProperties) {
+        this.userService         = userService;
+        this.stateService        = stateService;
+        this.reportService       = reportService;
+        this.subscriptionService = subscriptionService;
+        this.botProperties       = botProperties;
+    }
 
     public void handle(Message message, MonetkaBot bot) {
         String text       = message.getText();
@@ -48,162 +57,89 @@ public class CommandHandler {
         }
     }
 
-    // ================================================================
-    // /start
-    // ================================================================
-
     private void handleStart(Message message, long chatId, long telegramId, MonetkaBot bot) {
         org.telegram.telegrambots.meta.api.objects.User from = message.getFrom();
-
         User user = userService.registerOrGet(
-                telegramId, from.getUserName(), from.getFirstName(), from.getLastName()
-        );
+                telegramId, from.getUserName(), from.getFirstName(), from.getLastName());
         stateService.reset(telegramId);
 
         switch (user.getStatus()) {
             case PENDING -> {
-                bot.sendText(chatId,
-                        "👋 Привет, " + user.getDisplayName() + "!\n\n" +
-                                "Заявка отправлена администратору. Ожидай ⏳");
+                bot.sendText(chatId, "👋 Привет, " + user.getDisplayName() + "!\n\nЗаявка отправлена администратору. Ожидай ⏳");
                 notifyAdmins(user, bot);
             }
             case APPROVED -> bot.sendMessage(chatId,
                     "👋 Снова привет, " + user.getDisplayName() + "! Готов к работе 💪",
                     KeyboardFactory.mainMenu());
-            case BLOCKED -> bot.sendText(chatId,
-                    "Ваш доступ к Monetka был заблокирован администратором.");
+            case BLOCKED -> bot.sendText(chatId, "Ваш доступ к Monetka был заблокирован администратором.");
         }
     }
-
-    // ================================================================
-    // /help
-    // ================================================================
 
     private void handleHelp(long chatId, long telegramId, MonetkaBot bot) {
         if (!checkApproved(chatId, telegramId, bot)) return;
         bot.sendMarkdown(chatId,
                 "*Monetka — финансовый помощник* 💰\n\n" +
-                        "*Добавить расход / доход:*\n" +
-                        "Нажми кнопку → введи `название сумма`\n" +
-                        "Пример: `шаурма 300`\n\n" +
-                        "*Команды:*\n" +
-                        "/balance — текущий баланс\n" +
-                        "/stats — статистика\n" +
-                        "/subscriptions — подписки\n" +
-                        "/cancel — отменить действие\n" +
-                        "/help — справка"
-        );
+                        "*Добавить расход / доход:*\nНажми кнопку → введи `название сумма`\nПример: `шаурма 300`\n\n" +
+                        "*Команды:*\n/balance — текущий баланс\n/stats — статистика\n/subscriptions — подписки\n/help — справка");
     }
-
-    // ================================================================
-    // /cancel
-    // ================================================================
 
     private void handleCancel(long chatId, long telegramId, MonetkaBot bot) {
         stateService.reset(telegramId);
         bot.sendMessage(chatId, "Действие отменено.", KeyboardFactory.mainMenu());
     }
 
-    // ================================================================
-    // /balance
-    // ================================================================
-
     private void handleBalance(long chatId, long telegramId, MonetkaBot bot) {
         if (!checkApproved(chatId, telegramId, bot)) return;
         userService.findByTelegramId(telegramId).ifPresent(user ->
-                bot.sendMarkdown(chatId,
-                        "💳 *Баланс:*\n\n*" + fmt(user.getBalance()) + "*")
-        );
+                bot.sendMarkdown(chatId, "💳 *Баланс:*\n\n*" + fmt(user.getBalance()) + "*"));
     }
-
-    // ================================================================
-    // /stats
-    // ================================================================
 
     private void handleStats(long chatId, long telegramId, MonetkaBot bot) {
         if (!checkApproved(chatId, telegramId, bot)) return;
         userService.findByTelegramId(telegramId).ifPresent(user ->
-                bot.sendMessage(chatId,
-                        reportService.buildMonthStats(user),
-                        KeyboardFactory.statsPeriod())
-        );
+                bot.sendMessage(chatId, reportService.buildMonthStats(user), KeyboardFactory.statsPeriod()));
     }
-
-    // ================================================================
-    // /subscriptions
-    // ================================================================
 
     private void handleSubscriptions(long chatId, long telegramId, MonetkaBot bot) {
         if (!checkApproved(chatId, telegramId, bot)) return;
         userService.findByTelegramId(telegramId).ifPresent(user -> {
             List<Subscription> subs = subscriptionService.getActiveSubscriptions(user);
-            bot.sendMessage(chatId,
-                    reportService.buildSubscriptionsList(user),
+            bot.sendMessage(chatId, reportService.buildSubscriptionsList(user),
                     KeyboardFactory.subscriptionActions(subs));
         });
     }
 
-    // ================================================================
-    // Admin: /pending — список с кнопками на каждого
-    // ================================================================
-
     private void handlePending(long chatId, long telegramId, MonetkaBot bot) {
         if (!checkAdmin(chatId, telegramId, bot)) return;
-
         List<User> pending = userService.getPendingUsers();
-        if (pending.isEmpty()) {
-            bot.sendText(chatId, "✅ Заявок нет.");
-            return;
-        }
-
+        if (pending.isEmpty()) { bot.sendText(chatId, "✅ Заявок нет."); return; }
         bot.sendMarkdown(chatId, "⏳ *Ожидают одобрения: " + pending.size() + "*");
-
-        // Каждый пользователь — отдельное сообщение с кнопками
         for (User u : pending) {
-            String info = "👤 *" + u.getDisplayName() + "*\n" +
-                    "🆔 `" + u.getTelegramId() + "`";
-            bot.sendMessage(chatId, info,
-                    KeyboardFactory.adminUserActions(u.getTelegramId(), false));
+            bot.sendMessage(chatId,
+                    "👤 *" + u.getDisplayName() + "*\n🆔 `" + u.getTelegramId() + "`",
+                    KeyboardFactory.pendingUserButtons(u.getTelegramId()));
         }
     }
-
-    // ================================================================
-    // Admin: /blocked — список с кнопками разблокировки
-    // ================================================================
 
     private void handleBlockedList(long chatId, long telegramId, MonetkaBot bot) {
         if (!checkAdmin(chatId, telegramId, bot)) return;
-
         List<User> blocked = userService.getBlockedUsers();
-        if (blocked.isEmpty()) {
-            bot.sendText(chatId, "✅ Заблокированных нет.");
-            return;
-        }
-
+        if (blocked.isEmpty()) { bot.sendText(chatId, "✅ Заблокированных нет."); return; }
         bot.sendMarkdown(chatId, "🚫 *Заблокированы: " + blocked.size() + "*");
-
         for (User u : blocked) {
-            String info = "👤 *" + u.getDisplayName() + "*\n" +
-                    "🆔 `" + u.getTelegramId() + "`";
-            bot.sendMessage(chatId, info,
-                    KeyboardFactory.adminUserActions(u.getTelegramId(), true));
+            bot.sendMessage(chatId,
+                    "👤 *" + u.getDisplayName() + "*\n🆔 `" + u.getTelegramId() + "`",
+                    KeyboardFactory.blockedUserButtons(u.getTelegramId()));
         }
     }
-
-    // ================================================================
-    // Admin: /approve /block /unblock
-    // ================================================================
 
     private void handleApprove(String text, long chatId, long telegramId, MonetkaBot bot) {
         if (!checkAdmin(chatId, telegramId, bot)) return;
         Long targetId = parseId(text, chatId, bot);
         if (targetId == null) return;
-
         if (userService.approveUser(targetId)) {
             bot.sendText(chatId, "✅ Пользователь " + targetId + " одобрен.");
-            bot.sendMessage(targetId,
-                    "✅ *Добро пожаловать в Monetka!*\nДоступ подтверждён 🎉",
-                    KeyboardFactory.mainMenu());
+            bot.sendMessage(targetId, "✅ *Добро пожаловать в Monetka!*\nДоступ подтверждён 🎉", KeyboardFactory.mainMenu());
         } else {
             bot.sendText(chatId, "Пользователь не найден.");
         }
@@ -213,12 +149,9 @@ public class CommandHandler {
         if (!checkAdmin(chatId, telegramId, bot)) return;
         Long targetId = parseId(text, chatId, bot);
         if (targetId == null) return;
-
         if (userService.blockUser(targetId)) {
             bot.sendText(chatId, "🚫 Пользователь " + targetId + " заблокирован.");
             bot.sendText(targetId, "Ваш доступ к Monetka был заблокирован администратором.");
-        } else {
-            bot.sendText(chatId, "Пользователь не найден.");
         }
     }
 
@@ -226,35 +159,18 @@ public class CommandHandler {
         if (!checkAdmin(chatId, telegramId, bot)) return;
         Long targetId = parseId(text, chatId, bot);
         if (targetId == null) return;
-
         if (userService.unblockUser(targetId)) {
             bot.sendText(chatId, "✅ Пользователь " + targetId + " разблокирован.");
-            bot.sendMessage(targetId,
-                    "✅ Твой доступ к Monetka восстановлен!",
-                    KeyboardFactory.mainMenu());
-        } else {
-            bot.sendText(chatId, "Пользователь не найден.");
+            bot.sendMessage(targetId, "✅ Твой доступ восстановлен!", KeyboardFactory.mainMenu());
         }
     }
-
-    // ================================================================
-    // Уведомление админам о новом пользователе
-    // ================================================================
 
     private void notifyAdmins(User user, MonetkaBot bot) {
-        String msg = "🆕 *Новая заявка*\n\n" +
-                "👤 " + user.getDisplayName() + "\n" +
-                "🆔 `" + user.getTelegramId() + "`";
-
+        String msg = "🆕 *Новая заявка*\n\n👤 " + user.getDisplayName() + "\n🆔 `" + user.getTelegramId() + "`";
         for (Long adminId : botProperties.getAdminIds()) {
-            bot.sendMessage(adminId, msg,
-                    KeyboardFactory.adminApproveButtons(user.getTelegramId()));
+            bot.sendMessage(adminId, msg, KeyboardFactory.pendingUserButtons(user.getTelegramId()));
         }
     }
-
-    // ================================================================
-    // Helpers
-    // ================================================================
 
     private boolean checkApproved(long chatId, long telegramId, MonetkaBot bot) {
         if (!userService.isApproved(telegramId)) {
@@ -274,16 +190,9 @@ public class CommandHandler {
 
     private Long parseId(String text, long chatId, MonetkaBot bot) {
         String[] parts = text.trim().split("\\s+");
-        if (parts.length < 2) {
-            bot.sendText(chatId, "Укажи ID. Пример: " + parts[0] + " 123456789");
-            return null;
-        }
-        try {
-            return Long.parseLong(parts[1]);
-        } catch (NumberFormatException e) {
-            bot.sendText(chatId, "Некорректный ID: " + parts[1]);
-            return null;
-        }
+        if (parts.length < 2) { bot.sendText(chatId, "Укажи ID. Пример: " + parts[0] + " 123456789"); return null; }
+        try { return Long.parseLong(parts[1]); }
+        catch (NumberFormatException e) { bot.sendText(chatId, "Некорректный ID: " + parts[1]); return null; }
     }
 
     private String extractCommand(String text) {

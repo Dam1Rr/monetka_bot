@@ -1,25 +1,27 @@
 package com.monetka.config;
 
-import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.ArrayList;
 import java.util.List;
 
-@Data
 @Configuration
 @ConfigurationProperties(prefix = "telegram.bot")
 public class BotProperties {
 
-    /** Telegram Bot token from @BotFather */
     private String token;
-
-    /** Bot username (without @) */
     private String username;
-
-    /** Public HTTPS URL of the app (e.g. https://monetka-bot.up.railway.app) */
     private String webhookUrl;
+    private List<Long> adminIds = new ArrayList<>();
 
-    /** Telegram IDs of admins who can approve users */
-    private List<Long> adminIds = List.of();
+    public String getToken()            { return token; }
+    public String getUsername()         { return username; }
+    public String getWebhookUrl()       { return webhookUrl; }
+    public List<Long> getAdminIds()     { return adminIds; }
+
+    public void setToken(String token)              { this.token = token; }
+    public void setUsername(String username)        { this.username = username; }
+    public void setWebhookUrl(String webhookUrl)    { this.webhookUrl = webhookUrl; }
+    public void setAdminIds(List<Long> adminIds)    { this.adminIds = adminIds; }
 }

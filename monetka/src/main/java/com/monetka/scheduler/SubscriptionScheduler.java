@@ -5,42 +5,41 @@ import com.monetka.bot.keyboard.KeyboardFactory;
 import com.monetka.model.Subscription;
 import com.monetka.service.SubscriptionService;
 import com.monetka.service.TransactionService;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-/**
- * Ежемесячное списание подписок + предупреждение об истекающих.
- */
-@Slf4j
 @Component
-@RequiredArgsConstructor
 public class SubscriptionScheduler {
+
+    private static final Logger log = LoggerFactory.getLogger(SubscriptionScheduler.class);
 
     private final SubscriptionService subscriptionService;
     private final TransactionService  transactionService;
     private final MonetkaBot          bot;
 
-    /** Списание подписок каждый день в 09:00 */
+    public SubscriptionScheduler(SubscriptionService subscriptionService,
+                                 TransactionService transactionService,
+                                 MonetkaBot bot) {
+        this.subscriptionService = subscriptionService;
+        this.transactionService  = transactionService;
+        this.bot                 = bot;
+    }
+
     @Scheduled(cron = "0 0 9 * * *")
     public void chargeSubscriptions() {
         List<Subscription> due = subscriptionService.getDueToday();
         if (due.isEmpty()) return;
-
         log.info("Charging {} subscriptions", due.size());
-
         for (Subscription sub : due) {
             try {
-                transactionService.addExpense(
-                        sub.getUser(), sub.getAmount(), sub.getName() + " (подписка)"
-                );
+                transactionService.addExpense(sub.getUser(), sub.getAmount(), sub.getName() + " (подписка)");
                 bot.sendMessage(sub.getUser().getTelegramId(),
-                        "🔄 *Списание подписки*\n\n" +
-                                "📝 " + sub.getName() + "\n" +
-                                String.format("💸 −%,.0f сом", sub.getAmount()),
+                        "🔄 *Списание подписки*\n\n📝 " + sub.getName() +
+                                String.format("\n💸 −%,.0f сом", sub.getAmount()),
                         KeyboardFactory.mainMenu());
             } catch (Exception e) {
                 log.error("Failed to charge subscription {}: {}", sub.getId(), e.getMessage());
@@ -48,18 +47,15 @@ public class SubscriptionScheduler {
         }
     }
 
-    /** Напоминание об истекающих подписках в 10:00 */
     @Scheduled(cron = "0 0 10 * * *")
     public void remindExpiring() {
         List<Subscription> expiring = subscriptionService.getExpiringSoon(3);
         for (Subscription sub : expiring) {
             Long days = sub.daysUntilExpiry();
             if (days == null) continue;
-
             String msg = days == 0
                     ? "⚠️ *Подписка истекает сегодня!*\n📝 " + sub.getName()
                     : "⏰ *Подписка истекает через " + days + " дн.*\n📝 " + sub.getName();
-
             bot.sendMarkdown(sub.getUser().getTelegramId(), msg);
         }
     }
