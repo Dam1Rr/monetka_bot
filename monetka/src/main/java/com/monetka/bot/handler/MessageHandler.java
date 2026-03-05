@@ -2,205 +2,231 @@ package com.monetka.bot.handler;
 
 import com.monetka.bot.MonetkaBot;
 import com.monetka.bot.keyboard.KeyboardFactory;
-import com.monetka.config.BotProperties;
-import com.monetka.model.Category;
-import com.monetka.model.Subcategory;
+import com.monetka.model.Subscription;
 import com.monetka.model.Transaction;
 import com.monetka.model.User;
 import com.monetka.model.enums.UserState;
-import com.monetka.repository.CategoryRepository;
-import com.monetka.repository.SubcategoryRepository;
-import com.monetka.repository.TransactionRepository;
+import com.monetka.model.enums.UserStatus;
 import com.monetka.service.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
-import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
-import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import org.telegram.telegrambots.meta.api.objects.Message;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.Arrays;
 import java.util.Optional;
 
 @Component
-public class CallbackHandler {
+public class MessageHandler {
 
-    private static final Logger log = LoggerFactory.getLogger(CallbackHandler.class);
+    private static final Logger log = LoggerFactory.getLogger(MessageHandler.class);
+    private static final String CANCEL_BUTTON = "❌ Отменить действие";
+    private static final DateTimeFormatter D_FMT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
     private final UserService              userService;
     private final UserStateService         stateService;
     private final TransactionService       transactionService;
     private final SubscriptionService      subscriptionService;
     private final ReportService            reportService;
+    private final FinancialTipsService     tipsService;
     private final CategoryDetectionService detectionService;
-    private final CategoryRepository       categoryRepository;
-    private final SubcategoryRepository    subcategoryRepository;
-    private final TransactionRepository    transactionRepository;
-    private final BotProperties            botProperties;
 
-    public CallbackHandler(UserService userService, UserStateService stateService,
-                           TransactionService transactionService, SubscriptionService subscriptionService,
-                           ReportService reportService, CategoryDetectionService detectionService,
-                           CategoryRepository categoryRepository, SubcategoryRepository subcategoryRepository,
-                           TransactionRepository transactionRepository, BotProperties botProperties) {
-        this.userService          = userService;
-        this.stateService         = stateService;
-        this.transactionService   = transactionService;
-        this.subscriptionService  = subscriptionService;
-        this.reportService        = reportService;
-        this.detectionService     = detectionService;
-        this.categoryRepository   = categoryRepository;
-        this.subcategoryRepository= subcategoryRepository;
-        this.transactionRepository= transactionRepository;
-        this.botProperties        = botProperties;
+    public MessageHandler(UserService userService, UserStateService stateService,
+                          TransactionService transactionService, SubscriptionService subscriptionService,
+                          ReportService reportService, FinancialTipsService tipsService,
+                          CategoryDetectionService detectionService) {
+        this.userService         = userService;
+        this.stateService        = stateService;
+        this.transactionService  = transactionService;
+        this.subscriptionService = subscriptionService;
+        this.reportService       = reportService;
+        this.tipsService         = tipsService;
+        this.detectionService    = detectionService;
     }
 
-    public void handle(CallbackQuery callback, MonetkaBot bot) {
-        long   chatId     = callback.getMessage().getChatId();
-        long   telegramId = callback.getFrom().getId();
-        String data       = callback.getData();
-
-        answerCallback(callback.getId(), bot);
+    public void handle(Message message, MonetkaBot bot) {
+        long   chatId     = message.getChatId();
+        long   telegramId = message.getFrom().getId();
+        String text       = message.getText();
 
         Optional<User> userOpt = userService.findByTelegramId(telegramId);
-        if (userOpt.isEmpty()) return;
+        if (userOpt.isEmpty()) { bot.sendText(chatId, "Используй /start для регистрации."); return; }
         User user = userOpt.get();
 
-        if      (data.startsWith("approve:"))      handleApprove(data, chatId, telegramId, bot);
-        else if (data.startsWith("block_user:"))   handleBlockUser(data, chatId, telegramId, bot);
-        else if (data.startsWith("unblock_user:")) handleUnblockUser(data, chatId, telegramId, bot);
-        else if (data.startsWith("cancel_sub:"))   handleCancelSub(user, data, chatId, bot);
-        else if (data.equals("add_sub"))           handleAddSub(telegramId, chatId, bot);
-        else if (data.startsWith("stats:"))        handleStats(user, data, chatId, bot);
-        else if (data.startsWith("cat:"))          handleCategoryChoice(user, data, chatId, telegramId, bot);
-        else if (data.startsWith("subcat:"))       handleSubcategoryChoice(user, data, chatId, telegramId, bot);
-        else log.warn("Unknown callback: {}", data);
-    }
-
-    private void handleCategoryChoice(User user, String data, long chatId, long telegramId, MonetkaBot bot) {
-        long catId = Long.parseLong(data.split(":")[1]);
-        Optional<Category> catOpt = categoryRepository.findById(catId);
-        if (catOpt.isEmpty()) { bot.sendText(chatId, "Категория не найдена."); return; }
-        Category category = catOpt.get();
-        stateService.putData(telegramId, "chosen_category_id", String.valueOf(catId));
-        stateService.setState(telegramId, UserState.WAITING_SUBCATEGORY_CHOICE);
-        if (category.getSubcategories().isEmpty()) {
-            saveExpenseWithCategory(user, category, null, chatId, telegramId, bot);
-        } else {
-            bot.sendMessage(chatId,
-                    "Выбрана: *" + category.getDisplayName() + "*\n\nТеперь выбери подкатегорию:",
-                    KeyboardFactory.subcategoryChoice(category.getSubcategories(), catId));
+        if (user.getStatus() == UserStatus.BLOCKED) {
+            bot.sendText(chatId, "Ваш доступ к Monetka был заблокирован администратором."); return;
         }
-    }
-
-    private void handleSubcategoryChoice(User user, String data, long chatId, long telegramId, MonetkaBot bot) {
-        String catIdStr = stateService.getData(telegramId, "chosen_category_id");
-        if (catIdStr == null) { stateService.reset(telegramId); return; }
-        Category category = categoryRepository.findById(Long.parseLong(catIdStr)).orElse(null);
-        if (category == null) { stateService.reset(telegramId); return; }
-        String subPart = data.split(":")[1];
-        Subcategory subcategory = null;
-        if (!subPart.equals("skip")) {
-            subcategory = subcategoryRepository.findById(Long.parseLong(subPart)).orElse(null);
+        if (user.getStatus() == UserStatus.PENDING) {
+            bot.sendText(chatId, "⏳ Твоя заявка ожидает одобрения администратора."); return;
         }
-        saveExpenseWithCategory(user, category, subcategory, chatId, telegramId, bot);
-    }
 
-    private void saveExpenseWithCategory(User user, Category category, Subcategory subcategory,
-                                         long chatId, long telegramId, MonetkaBot bot) {
-        String desc   = stateService.getData(telegramId, "expense_desc");
-        String amtStr = stateService.getData(telegramId, "expense_amount");
-        if (desc == null || amtStr == null) {
+        if (CANCEL_BUTTON.equals(text)) {
             stateService.reset(telegramId);
-            bot.sendMessage(chatId, "Что-то пошло не так. Попробуй снова.", KeyboardFactory.mainMenu()); return;
+            bot.sendMessage(chatId, "Действие отменено.", KeyboardFactory.mainMenu()); return;
         }
-        BigDecimal amount = new BigDecimal(amtStr);
-        Transaction tx = transactionService.addExpense(user, amount, desc);
-        String keyword = detectionService.normalize(desc);
-        if (!keyword.isBlank()) {
-            detectionService.learnKeyword(keyword.split("\\s+")[0], category, subcategory, user.getTelegramId());
+
+        UserState state = stateService.getState(telegramId);
+        switch (state) {
+            case WAITING_EXPENSE        -> { handleExpenseInput(user, text, chatId, telegramId, bot);  return; }
+            case WAITING_INCOME         -> { handleIncomeInput(user, text, chatId, telegramId, bot);   return; }
+            case WAITING_SUB_NAME       -> { handleSubName(text, chatId, telegramId, bot);             return; }
+            case WAITING_SUB_AMOUNT     -> { handleSubAmount(text, chatId, telegramId, bot);           return; }
+            case WAITING_SUB_START_DATE -> { handleSubStartDate(text, chatId, telegramId, bot);        return; }
+            case WAITING_SUB_END_DATE   -> { handleSubEndDate(user, text, chatId, telegramId, bot);    return; }
+            default -> {}
         }
-        tx.setCategory(category);
-        tx.setSubcategory(subcategory);
-        transactionRepository.save(tx);
+
+        switch (text) {
+            case "💸 Расход" -> startExpense(chatId, telegramId, bot);
+            case "💰 Доход"  -> startIncome(chatId, telegramId, bot);
+            default -> bot.sendMessage(chatId,
+                    "Используй кнопки ниже или команды:\n/balance /stats /subscriptions /help",
+                    KeyboardFactory.mainMenu());
+        }
+    }
+
+    private void startExpense(long chatId, long telegramId, MonetkaBot bot) {
+        stateService.setState(telegramId, UserState.WAITING_EXPENSE);
+        bot.sendMessage(chatId, "Введи расход в формате:\n*название сумма*\n\nПример: `шаурма 300`", KeyboardFactory.cancelMenu());
+    }
+
+    private void handleExpenseInput(User user, String text, long chatId, long telegramId, MonetkaBot bot) {
+        ParseResult p = parse(text);
+        if (p == null) {
+            bot.sendMessage(chatId, "Введи расход в формате:\n*название сумма*\n\nПример: `шаурма 300`", KeyboardFactory.cancelMenu()); return;
+        }
+        CategoryDetectionService.DetectionResult detection = detectionService.detectCategory(p.description, user.getTelegramId());
+        stateService.putData(telegramId, "expense_desc",   p.description);
+        stateService.putData(telegramId, "expense_amount", p.amount.toPlainString());
+
+        if (detection.isConfident() && detection.getCategory() != null && !detection.getCategory().isDefault()) {
+            saveExpense(user, p, detection, chatId, telegramId, bot);
+        } else {
+            stateService.setState(telegramId, UserState.WAITING_CATEGORY_CHOICE);
+            bot.sendMessage(chatId,
+                    "🤔 Не смог определить категорию для *" + p.description + "*\n\nВыбери из списка:",
+                    KeyboardFactory.categoryChoice(detectionService.getAllCategories()));
+        }
+    }
+
+    private void saveExpense(User user, ParseResult p, CategoryDetectionService.DetectionResult detection,
+                             long chatId, long telegramId, MonetkaBot bot) {
+        transactionService.addExpense(user, p.amount, p.description);
         stateService.reset(telegramId);
-        String catDisplay = subcategory != null
-                ? category.getDisplayName() + " → " + subcategory.getDisplayName()
-                : category.getDisplayName();
+        String cat  = detection.display();
+        String conf = detection.getConfidence() < 1.0 ? " _(~" + Math.round(detection.getConfidence() * 100) + "%)_" : "";
         bot.sendMessage(chatId,
-                "✅ *Расход сохранён!*\n\n📝 " + desc + "\n💸 −" + fmt(amount) +
-                        "\n🏷 " + catDisplay + "\n💳 Баланс: " + fmt(user.getBalance()) +
-                        "\n\n💡 _Запомнил! В следующий раз определю автоматически._",
+                "✅ *Расход сохранён!*\n\n📝 " + p.description + "\n💸 −" + fmt(p.amount) +
+                        "\n🏷 " + cat + conf + "\n💳 Баланс: " + fmt(user.getBalance()),
                 KeyboardFactory.mainMenu());
     }
 
-    private void handleApprove(String data, long chatId, long telegramId, MonetkaBot bot) {
-        if (!isAdmin(telegramId)) return;
-        long targetId = parseId(data);
-        if (userService.approveUser(targetId)) {
-            bot.sendText(chatId, "✅ Пользователь " + targetId + " одобрен.");
-            bot.sendMessage(targetId, "✅ *Добро пожаловать в Monetka!*\n\nТвой доступ подтверждён 🎉", KeyboardFactory.mainMenu());
+    private void startIncome(long chatId, long telegramId, MonetkaBot bot) {
+        stateService.setState(telegramId, UserState.WAITING_INCOME);
+        bot.sendMessage(chatId, "Введи доход в формате:\n*название сумма*\n\nПример: `зарплата 150000`", KeyboardFactory.cancelMenu());
+    }
+
+    private void handleIncomeInput(User user, String text, long chatId, long telegramId, MonetkaBot bot) {
+        ParseResult p = parse(text);
+        if (p == null) {
+            bot.sendMessage(chatId, "Введи доход в формате:\n*название сумма*\n\nПример: `зарплата 150000`", KeyboardFactory.cancelMenu()); return;
+        }
+        transactionService.addIncome(user, p.amount, p.description);
+        stateService.reset(telegramId);
+        bot.sendMessage(chatId,
+                "✅ *Доход сохранён!*\n\n📝 " + p.description + "\n💰 +" + fmt(p.amount) + "\n💳 Баланс: " + fmt(user.getBalance()),
+                KeyboardFactory.mainMenu());
+    }
+
+    private void handleSubName(String text, long chatId, long telegramId, MonetkaBot bot) {
+        stateService.putData(telegramId, "sub_name", text.trim());
+        stateService.setState(telegramId, UserState.WAITING_SUB_AMOUNT);
+        bot.sendMessage(chatId, "Сумма в месяц (например: `1500`):", KeyboardFactory.cancelMenu());
+    }
+
+    private void handleSubAmount(String text, long chatId, long telegramId, MonetkaBot bot) {
+        try {
+            BigDecimal amount = new BigDecimal(text.trim().replace(",", "."));
+            stateService.putData(telegramId, "sub_amount", amount.toPlainString());
+            stateService.setState(telegramId, UserState.WAITING_SUB_START_DATE);
+            bot.sendMessage(chatId, "Дата начала подписки в формате *ДД.ММ.ГГГГ*\n\nИли нажми _Сегодня_:", KeyboardFactory.cancelWithSkip("Сегодня"));
+        } catch (NumberFormatException e) {
+            bot.sendMessage(chatId, "Введи число, например: `1500`", KeyboardFactory.cancelMenu());
         }
     }
 
-    private void handleBlockUser(String data, long chatId, long telegramId, MonetkaBot bot) {
-        if (!isAdmin(telegramId)) return;
-        long targetId = parseId(data);
-        if (userService.blockUser(targetId)) {
-            bot.sendText(chatId, "🚫 Пользователь " + targetId + " заблокирован.");
-            bot.sendText(targetId, "Ваш доступ к Monetka был заблокирован администратором.");
-        }
-    }
-
-    private void handleUnblockUser(String data, long chatId, long telegramId, MonetkaBot bot) {
-        if (!isAdmin(telegramId)) return;
-        long targetId = parseId(data);
-        if (userService.unblockUser(targetId)) {
-            bot.sendText(chatId, "✅ Пользователь " + targetId + " разблокирован.");
-            bot.sendMessage(targetId, "✅ Твой доступ к Monetka восстановлен!", KeyboardFactory.mainMenu());
-        }
-    }
-
-    private void handleCancelSub(User user, String data, long chatId, MonetkaBot bot) {
-        long subId = parseId(data);
-        if (subscriptionService.cancel(user, subId)) {
-            bot.sendMessage(chatId,
-                    "✅ Подписка удалена.\n\n" + reportService.buildSubscriptionsList(user),
-                    KeyboardFactory.subscriptionActions(subscriptionService.getActiveSubscriptions(user)));
+    private void handleSubStartDate(String text, long chatId, long telegramId, MonetkaBot bot) {
+        LocalDate startDate;
+        if (text.equalsIgnoreCase("сегодня") || text.startsWith("⏭")) {
+            startDate = LocalDate.now();
         } else {
-            bot.sendText(chatId, "Подписка не найдена.");
+            startDate = parseDate(text);
+            if (startDate == null) {
+                bot.sendMessage(chatId, "Неверный формат. Введи *ДД.ММ.ГГГГ*\nПример: `" + LocalDate.now().format(D_FMT) + "`", KeyboardFactory.cancelWithSkip("Сегодня")); return;
+            }
         }
+        stateService.putData(telegramId, "sub_start", startDate.toString());
+        stateService.setState(telegramId, UserState.WAITING_SUB_END_DATE);
+        bot.sendMessage(chatId, "Дата окончания подписки *ДД.ММ.ГГГГ*\n\nИли нажми _Бессрочно_:", KeyboardFactory.cancelWithSkip("Бессрочно"));
     }
 
-    private void handleAddSub(long telegramId, long chatId, MonetkaBot bot) {
-        stateService.setState(telegramId, UserState.WAITING_SUB_NAME);
-        bot.sendMessage(chatId, "Введи название подписки:", KeyboardFactory.cancelMenu());
+    private void handleSubEndDate(User user, String text, long chatId, long telegramId, MonetkaBot bot) {
+        LocalDate endDate = null;
+        if (!text.equalsIgnoreCase("бессрочно") && !text.startsWith("⏭")) {
+            endDate = parseDate(text);
+            if (endDate == null) {
+                bot.sendMessage(chatId, "Неверный формат. Введи *ДД.ММ.ГГГГ*\nИли нажми _Бессрочно_:", KeyboardFactory.cancelWithSkip("Бессрочно")); return;
+            }
+        }
+        String     name   = stateService.getData(telegramId, "sub_name");
+        BigDecimal amount = new BigDecimal(stateService.getData(telegramId, "sub_amount"));
+        LocalDate  start  = LocalDate.parse(stateService.getData(telegramId, "sub_start"));
+
+        Subscription sub = subscriptionService.create(user, name, amount, start, endDate);
+        stateService.reset(telegramId);
+        String tip = tipsService.tipForSubscription(name, amount);
+
+        StringBuilder reply = new StringBuilder("✅ *Подписка добавлена!*\n\n");
+        reply.append("📝 ").append(sub.getName()).append("\n");
+        reply.append("💸 ").append(fmt(sub.getAmount())).append("/мес\n");
+        reply.append("📅 С ").append(start.format(D_FMT));
+        if (endDate != null) reply.append(" до ").append(endDate.format(D_FMT));
+        else reply.append(" — бессрочно ♾");
+        reply.append("\n\n").append(tip);
+
+        bot.sendMessage(chatId, reply.toString(), KeyboardFactory.mainMenu());
     }
 
-    private void handleStats(User user, String data, long chatId, MonetkaBot bot) {
-        String period = data.split(":")[1];
-        String report = switch (period) {
-            case "today" -> reportService.buildTodayStats(user);
-            case "week"  -> reportService.buildWeekStats(user);
-            case "month" -> reportService.buildMonthStats(user);
-            default      -> "Неизвестный период";
-        };
-        bot.sendMessage(chatId, report, KeyboardFactory.statsPeriod());
+    private ParseResult parse(String text) {
+        if (text == null || text.isBlank()) return null;
+        String[] tokens = text.trim().split("\\s+");
+        if (tokens.length < 2) return null;
+        try {
+            BigDecimal amount = new BigDecimal(tokens[tokens.length - 1].replace(",", "."));
+            String desc = String.join(" ", Arrays.copyOf(tokens, tokens.length - 1)).trim();
+            return new ParseResult(desc.isBlank() ? "Без описания" : desc, amount);
+        } catch (NumberFormatException ignored) {}
+        try {
+            BigDecimal amount = new BigDecimal(tokens[0].replace(",", "."));
+            String desc = String.join(" ", Arrays.copyOfRange(tokens, 1, tokens.length)).trim();
+            return new ParseResult(desc.isBlank() ? "Без описания" : desc, amount);
+        } catch (NumberFormatException ignored) {}
+        return null;
     }
 
-    private boolean isAdmin(long telegramId) {
-        return botProperties.getAdminIds().contains(telegramId);
+    private LocalDate parseDate(String text) {
+        try { return LocalDate.parse(text.trim(), D_FMT); } catch (DateTimeParseException e) { return null; }
     }
-
-    private long parseId(String data) { return Long.parseLong(data.split(":")[1]); }
 
     private String fmt(BigDecimal amount) { return String.format("%,.0f сом", amount); }
 
-    private void answerCallback(String callbackId, MonetkaBot bot) {
-        try {
-            bot.execute(AnswerCallbackQuery.builder().callbackQueryId(callbackId).build());
-        } catch (TelegramApiException e) {
-            log.warn("Failed to answer callback: {}", e.getMessage());
-        }
+    private static final class ParseResult {
+        final String description;
+        final BigDecimal amount;
+        ParseResult(String d, BigDecimal a) { description = d; amount = a; }
     }
 }
