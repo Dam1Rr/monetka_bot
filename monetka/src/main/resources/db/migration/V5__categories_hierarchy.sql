@@ -40,6 +40,7 @@ INSERT INTO categories (name, emoji, is_default) VALUES
                                                      ('Покупки',      '🛍', false),
                                                      ('Подписки',     '📱', false),
                                                      ('Прочее',       '💰', true);
+ON CONFLICT (name) DO NOTHING;
 
 -- ================================================================
 -- ЕДА — подкатегории и ключевые слова
