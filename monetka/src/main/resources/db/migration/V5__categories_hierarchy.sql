@@ -39,7 +39,7 @@ INSERT INTO categories (name, emoji, is_default) VALUES
                                                      ('Здоровье',     '💊', false),
                                                      ('Покупки',      '🛍', false),
                                                      ('Подписки',     '📱', false),
-                                                     ('Прочее',       '💰', true);
+                                                     ('Прочее',       '💰', true)
 ON CONFLICT (name) DO NOTHING;
 
 -- ================================================================
