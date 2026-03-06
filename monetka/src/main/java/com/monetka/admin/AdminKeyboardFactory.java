@@ -25,6 +25,7 @@ public final class AdminKeyboardFactory {
                         btn("🚫 Заблокированные",  "adm:blocked")))
                 .keyboardRow(row(btn("👥 Пользователи",     "adm:users"),
                         btn("📊 Статистика",        "adm:stats")))
+                .keyboardRow(row(btn("📁 Выгрузить список", "adm:export")))
                 .keyboardRow(row(btn("🧹 Очистить данные",  "adm:wipe_1")))
                 .build();
     }

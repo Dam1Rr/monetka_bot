@@ -11,7 +11,10 @@ import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,12 +30,15 @@ public class AdminHandler {
 
     private static final Logger log = LoggerFactory.getLogger(AdminHandler.class);
 
-    private final AdminService   adminService;
-    private final BotProperties  botProperties;
+    private final AdminService      adminService;
+    private final BotProperties     botProperties;
+    private final UserExportService exportService;
 
-    public AdminHandler(AdminService adminService, BotProperties botProperties) {
+    public AdminHandler(AdminService adminService, BotProperties botProperties,
+                        UserExportService exportService) {
         this.adminService  = adminService;
         this.botProperties = botProperties;
+        this.exportService = exportService;
     }
 
     // ================================================================
@@ -78,6 +84,7 @@ public class AdminHandler {
         else if (action.equals("wipe_2"))            showWipeStep2(chatId, bot);
         else if (action.equals("wipe_cancel"))       sendMainMenu(chatId, bot);
         else if (action.equals("wipe_exec"))         executeWipe(chatId, telegramId, bot);
+        else if (action.equals("export"))            exportUsers(chatId, bot);
         else if (action.startsWith("approve:"))      approveUser(action, chatId, bot);
         else if (action.startsWith("reject:"))       rejectUser(action, chatId, bot);
         else if (action.startsWith("block:"))        blockUser(action, chatId, bot);
@@ -188,6 +195,24 @@ public class AdminHandler {
     }
 
     // ================================================================
+    // ================================================================
+    // 5 — EXPORT
+    // ================================================================
+
+    private void exportUsers(long chatId, MonetkaBot bot) {
+        try {
+            bot.sendMarkdown(chatId, "⏳ Генерирую файл...");
+            byte[] xlsx = exportService.generateUsersXlsx();
+            String date = LocalDate.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy"));
+            String filename = "monetka_users_" + date + ".xlsx";
+            String caption = "📊 *Список пользователей Monetka*\n" +
+                    "_Выгрузка от " + LocalDate.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy")) + "_";
+            bot.sendDocument(chatId, xlsx, filename, caption);
+        } catch (IOException e) {
+            bot.sendMarkdown(chatId, "❌ Ошибка при генерации файла: " + e.getMessage());
+        }
+    }
+
     // 5 — WIPE: step 1
     // ================================================================
 

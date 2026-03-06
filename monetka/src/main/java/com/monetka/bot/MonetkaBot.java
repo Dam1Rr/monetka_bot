@@ -6,10 +6,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramWebhookBot;
 import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboard;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+
+import java.io.ByteArrayInputStream;
 
 @Component
 public class MonetkaBot extends TelegramWebhookBot {
@@ -31,11 +35,8 @@ public class MonetkaBot extends TelegramWebhookBot {
         return null;
     }
 
-    @Override
-    public String getBotPath() { return "/webhook"; }
-
-    @Override
-    public String getBotUsername() { return botProperties.getUsername(); }
+    @Override public String getBotPath()     { return "/webhook"; }
+    @Override public String getBotUsername() { return botProperties.getUsername(); }
 
     public void sendText(long chatId, String text) {
         sendMessage(chatId, text, null);
@@ -56,6 +57,27 @@ public class MonetkaBot extends TelegramWebhookBot {
                 .parseMode("Markdown");
         if (keyboard != null) builder.replyMarkup(keyboard);
         doExecute(builder.build());
+    }
+
+    /**
+     * Send a file (e.g. XLSX) as a document to a chat.
+     * @param chatId   recipient
+     * @param data     raw file bytes
+     * @param filename filename shown in Telegram (e.g. "users.xlsx")
+     * @param caption  optional caption text (Markdown)
+     */
+    public void sendDocument(long chatId, byte[] data, String filename, String caption) {
+        try {
+            SendDocument doc = SendDocument.builder()
+                    .chatId(String.valueOf(chatId))
+                    .document(new InputFile(new ByteArrayInputStream(data), filename))
+                    .caption(caption != null ? caption : "")
+                    .parseMode("Markdown")
+                    .build();
+            execute(doc);
+        } catch (TelegramApiException e) {
+            logger.error("Failed to send document to {}: {}", chatId, e.getMessage());
+        }
     }
 
     private void doExecute(SendMessage message) {
