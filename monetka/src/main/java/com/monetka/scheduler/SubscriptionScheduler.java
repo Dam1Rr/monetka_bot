@@ -12,6 +12,12 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+/**
+ * Subscription charges and expiry reminders.
+ * Times are Asia/Bishkek (UTC+6):
+ *   09:00 Bishkek = 03:00 UTC  (charges)
+ *   10:00 Bishkek = 04:00 UTC  (reminders)
+ */
 @Component
 public class SubscriptionScheduler {
 
@@ -29,14 +35,15 @@ public class SubscriptionScheduler {
         this.bot                 = bot;
     }
 
-    @Scheduled(cron = "0 0 9 * * *")
+    @Scheduled(cron = "0 0 9 * * *", zone = "Asia/Bishkek")
     public void chargeSubscriptions() {
         List<Subscription> due = subscriptionService.getDueToday();
         if (due.isEmpty()) return;
         log.info("Charging {} subscriptions", due.size());
         for (Subscription sub : due) {
             try {
-                transactionService.addExpense(sub.getUser(), sub.getAmount(), sub.getName() + " (подписка)");
+                transactionService.addExpense(sub.getUser(), sub.getAmount(),
+                        sub.getName() + " (подписка)");
                 bot.sendMessage(sub.getUser().getTelegramId(),
                         "🔄 *Списание подписки*\n\n📝 " + sub.getName() +
                                 String.format("\n💸 −%,.0f сом", sub.getAmount()),
@@ -47,7 +54,7 @@ public class SubscriptionScheduler {
         }
     }
 
-    @Scheduled(cron = "0 0 10 * * *")
+    @Scheduled(cron = "0 0 10 * * *", zone = "Asia/Bishkek")
     public void remindExpiring() {
         List<Subscription> expiring = subscriptionService.getExpiringSoon(3);
         for (Subscription sub : expiring) {

@@ -36,15 +36,15 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public boolean isApproved(Long telegramId) {
+    public boolean isActive(Long telegramId) {
         return userRepository.findByTelegramId(telegramId)
-                .map(u -> u.getStatus() == UserStatus.APPROVED).orElse(false);
+                .map(u -> u.getStatus() == UserStatus.ACTIVE).orElse(false);
     }
 
     @Transactional
     public boolean approveUser(Long telegramId) {
         return userRepository.findByTelegramId(telegramId).map(user -> {
-            user.setStatus(UserStatus.APPROVED);
+            user.setStatus(UserStatus.ACTIVE);
             userRepository.save(user);
             log.info("User approved: {}", telegramId);
             return true;
@@ -64,7 +64,7 @@ public class UserService {
     @Transactional
     public boolean unblockUser(Long telegramId) {
         return userRepository.findByTelegramId(telegramId).map(user -> {
-            user.setStatus(UserStatus.APPROVED);
+            user.setStatus(UserStatus.ACTIVE);
             userRepository.save(user);
             log.info("User unblocked: {}", telegramId);
             return true;
@@ -75,7 +75,7 @@ public class UserService {
     public List<User> getPendingUsers()  { return userRepository.findAllByStatus(UserStatus.PENDING); }
 
     @Transactional(readOnly = true)
-    public List<User> getApprovedUsers() { return userRepository.findAllByStatus(UserStatus.APPROVED); }
+    public List<User> getActiveUsers() { return userRepository.findAllByStatus(UserStatus.ACTIVE); }
 
     @Transactional(readOnly = true)
     public List<User> getBlockedUsers()  { return userRepository.findAllByStatus(UserStatus.BLOCKED); }

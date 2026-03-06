@@ -11,9 +11,10 @@ spring:
     password: ${DATABASE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 10
-      minimum-idle: 2
-      connection-timeout: 30000
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 20000
+      initialization-fail-timeout: 60000
 
   jpa:
     hibernate:
@@ -22,23 +23,33 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
     open-in-view: false
 
   flyway:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
+    connect-retries: 5
+    connect-retries-interval: 5
+
+  jackson:
+    time-zone: Asia/Bishkek
+    serialization:
+      write-dates-as-timestamps: false
 
 telegram:
   bot:
-    token: ${BOT_TOKEN}
-    username: ${BOT_USERNAME}
-    webhook-url: ${WEBHOOK_URL}         # e.g. https://monetka-bot.up.railway.app
-    admin-ids: ${ADMIN_IDS:}            # comma-separated Telegram IDs of admins
+    token: ${BOT_TOKEN:changeme}
+    username: ${BOT_USERNAME:changeme}
+    webhook-url: ${WEBHOOK_URL:http://localhost:8080}
+    admin-ids: ${ADMIN_IDS:}
+
+# Timezone for all @Scheduled cron expressions
+spring.task.scheduling.pool.size: 2
 
 logging:
   level:
-    com.monetka: DEBUG
-    org.springframework.web: INFO
+    com.monetka: INFO
+    org.springframework.web: WARN
     org.hibernate.SQL: WARN
+    org.flywaydb: INFO

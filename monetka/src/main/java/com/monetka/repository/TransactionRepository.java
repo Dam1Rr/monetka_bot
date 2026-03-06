@@ -48,6 +48,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("from") LocalDateTime from,
             @Param("to")   LocalDateTime to);
 
+    /**
+     * Simple category totals — used for daily report.
+     * Returns: [catName, catEmoji, total]
+     */
     @Query("""
         SELECT t.category.name, t.category.emoji, SUM(t.amount)
         FROM Transaction t
@@ -62,7 +66,28 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("from") LocalDateTime from,
             @Param("to")   LocalDateTime to);
 
-    /** Global sum of all expenses — used in com.monetka.admin statistics */
+    /**
+     * Detailed breakdown by category + subcategory — used for /stats.
+     * Returns: [catName, catEmoji, subcatName(nullable), total]
+     */
+    @Query("""
+        SELECT t.category.name,
+               t.category.emoji,
+               t.subcategory.name,
+               SUM(t.amount)
+        FROM Transaction t
+        WHERE t.user = :user
+          AND t.type = 'EXPENSE'
+          AND t.createdAt BETWEEN :from AND :to
+        GROUP BY t.category.name, t.category.emoji, t.subcategory.name
+        ORDER BY SUM(t.amount) DESC
+    """)
+    List<Object[]> sumExpensesByCategoryAndSubcategoryAndPeriod(
+            @Param("user") User user,
+            @Param("from") LocalDateTime from,
+            @Param("to")   LocalDateTime to);
+
+    /** Global sum of all expenses — admin statistics */
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.type = 'EXPENSE'")
     BigDecimal sumAllExpenses();
 }
