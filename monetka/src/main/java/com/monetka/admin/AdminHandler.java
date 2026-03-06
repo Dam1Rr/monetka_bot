@@ -140,7 +140,7 @@ public class AdminHandler {
     // ================================================================
 
     private void showActiveUsers(long chatId, MonetkaBot bot) {
-        List<User> users = adminService.getApprovedUsers();
+        List<User> users = adminService.getActiveUsers();
 
         if (users.isEmpty()) {
             bot.sendMessage(chatId, "Активных пользователей нет.", AdminKeyboardFactory.backToMenu());
