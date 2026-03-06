@@ -1,8 +1,8 @@
 package com.monetka.bot.keyboard;
 
-import com.monetka.model.Category;
-import com.monetka.model.Subcategory;
-import com.monetka.model.Subscription;
+import com.monetka.model.*;
+import com.monetka.repository.CategoryRepository;
+import com.monetka.service.StatisticsService;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
@@ -22,10 +22,13 @@ public final class KeyboardFactory {
     public static ReplyKeyboardMarkup mainMenu() {
         ReplyKeyboardMarkup kb = new ReplyKeyboardMarkup();
         kb.setResizeKeyboard(true);
-        KeyboardRow row = new KeyboardRow();
-        row.add("💸 Расход");
-        row.add("💰 Доход");
-        kb.setKeyboard(List.of(row));
+        KeyboardRow r1 = new KeyboardRow();
+        r1.add("💸 Расход");
+        r1.add("💰 Доход");
+        KeyboardRow r2 = new KeyboardRow();
+        r2.add("📊 Обзор");
+        r2.add("🎯 Цели");
+        kb.setKeyboard(List.of(r1, r2));
         return kb;
     }
 
@@ -49,43 +52,169 @@ public final class KeyboardFactory {
     }
 
     // ================================================================
-    // Категории — выбор вручную
+    // Overview — main screen
     // ================================================================
 
-    /** Кнопки категорий когда бот не распознал */
-    public static InlineKeyboardMarkup categoryChoice(List<Category> categories) {
-        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-        List<InlineKeyboardButton> row = new ArrayList<>();
+    public static InlineKeyboardMarkup overviewMain(
+            List<StatisticsService.CategoryStats> cats,
+            CategoryRepository categoryRepository) {
 
-        for (Category cat : categories) {
-            row.add(button(cat.getDisplayName(), "cat:" + cat.getId()));
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+
+        // Category buttons (top 8)
+        int show = Math.min(cats.size(), 8);
+        List<InlineKeyboardButton> row = new ArrayList<>();
+        for (int i = 0; i < show; i++) {
+            StatisticsService.CategoryStats cs = cats.get(i);
+            String name = cs.label.replaceAll("^[\\p{So}\\p{Sm}\\s]+", "").trim();
+            categoryRepository.findByName(name).ifPresent(cat ->
+                    row.add(btn(cs.label, "overview:cat:" + cat.getId())));
             if (row.size() == 2) {
                 rows.add(new ArrayList<>(row));
                 row.clear();
             }
         }
-        if (!row.isEmpty()) rows.add(row);
+        if (!row.isEmpty()) rows.add(new ArrayList<>(row));
+
+        rows.add(List.of(btn("🎯 Настроить цели", "overview:goals")));
+        return InlineKeyboardMarkup.builder().keyboard(rows).build();
+    }
+
+    // ================================================================
+    // Overview — category screen
+    // ================================================================
+
+    public static InlineKeyboardMarkup overviewCategory(long categoryId,
+                                                        boolean hasSubs,
+                                                        boolean hasGoal) {
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+        rows.add(List.of(btn("📅 По дням", "overview:days:" + categoryId)));
+
+        if (hasGoal) {
+            rows.add(List.of(
+                    btn("✏️ Изменить цель",  "overview:set_goal:" + categoryId),
+                    btn("🗑 Удалить цель",   "overview:del_goal:" + categoryId)
+            ));
+        } else {
+            rows.add(List.of(btn("🎯 Поставить цель", "overview:set_goal:" + categoryId)));
+        }
+        rows.add(List.of(btn("← Обзор", "overview:main")));
+        return InlineKeyboardMarkup.builder().keyboard(rows).build();
+    }
+
+    // ================================================================
+    // Overview — subcategory screen
+    // ================================================================
+
+    public static InlineKeyboardMarkup overviewSubcategory(long subcategoryId,
+                                                           Long categoryId,
+                                                           List<Transaction> txs) {
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+
+        // Last 3 transactions — delete buttons
+        int show = Math.min(txs.size(), 3);
+        for (int i = 0; i < show; i++) {
+            Transaction tx = txs.get(i);
+            String label = "🗑 " + tx.getDescription() + " −" +
+                    String.format("%,.0f", tx.getAmount());
+            rows.add(List.of(btn(label, "overview:del_tx:" + tx.getId())));
+        }
+
+        if (categoryId != null)
+            rows.add(List.of(btn("← Назад", "overview:cat:" + categoryId)));
+        else
+            rows.add(List.of(btn("← Обзор", "overview:main")));
 
         return InlineKeyboardMarkup.builder().keyboard(rows).build();
     }
 
-    /** Кнопки подкатегорий */
+    // ================================================================
+    // Overview — goals screen
+    // ================================================================
+
+    public static InlineKeyboardMarkup overviewGoals(List<BudgetGoal> existing,
+                                                     List<Category> allCats) {
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+
+        // Existing goals — edit / delete
+        for (BudgetGoal g : existing) {
+            rows.add(List.of(
+                    btn("✏️ " + g.getCategory().getName(), "overview:set_goal:" + g.getCategory().getId()),
+                    btn("🗑", "overview:del_goal:" + g.getCategory().getId())
+            ));
+        }
+
+        // Add goal for categories without one
+        List<Long> existingIds = existing.stream()
+                .map(g -> g.getCategory().getId()).toList();
+
+        List<InlineKeyboardButton> addRow = new ArrayList<>();
+        for (Category cat : allCats) {
+            if (!existingIds.contains(cat.getId())) {
+                String label = (cat.getEmoji() != null ? cat.getEmoji() + " " : "") + cat.getName();
+                addRow.add(btn("+ " + cat.getName(), "overview:set_goal:" + cat.getId()));
+                if (addRow.size() == 2) {
+                    rows.add(new ArrayList<>(addRow));
+                    addRow.clear();
+                }
+            }
+        }
+        if (!addRow.isEmpty()) rows.add(new ArrayList<>(addRow));
+
+        rows.add(List.of(btn("← Обзор", "overview:main")));
+        return InlineKeyboardMarkup.builder().keyboard(rows).build();
+    }
+
+    // ================================================================
+    // Back to category
+    // ================================================================
+
+    public static InlineKeyboardMarkup backToCategory(long categoryId) {
+        return InlineKeyboardMarkup.builder()
+                .keyboardRow(List.of(
+                        btn("← Назад", "overview:cat:" + categoryId),
+                        btn("← Обзор", "overview:main")
+                ))
+                .build();
+    }
+
+    // ================================================================
+    // Confirm delete transaction
+    // ================================================================
+
+    public static InlineKeyboardMarkup confirmDeleteTx(long txId) {
+        return InlineKeyboardMarkup.builder()
+                .keyboardRow(List.of(
+                        btn("✅ Да, удалить", "overview:confirm_del:" + txId),
+                        btn("← Отмена",       "overview:main")
+                ))
+                .build();
+    }
+
+    // ================================================================
+    // Category choice — manual selection
+    // ================================================================
+
+    public static InlineKeyboardMarkup categoryChoice(List<Category> categories) {
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+        List<InlineKeyboardButton> row = new ArrayList<>();
+        for (Category cat : categories) {
+            row.add(btn(cat.getDisplayName(), "cat:" + cat.getId()));
+            if (row.size() == 2) { rows.add(new ArrayList<>(row)); row.clear(); }
+        }
+        if (!row.isEmpty()) rows.add(row);
+        return InlineKeyboardMarkup.builder().keyboard(rows).build();
+    }
+
     public static InlineKeyboardMarkup subcategoryChoice(List<Subcategory> subs, long categoryId) {
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         List<InlineKeyboardButton> row = new ArrayList<>();
-
         for (Subcategory sub : subs) {
-            row.add(button(sub.getDisplayName(), "subcat:" + sub.getId()));
-            if (row.size() == 2) {
-                rows.add(new ArrayList<>(row));
-                row.clear();
-            }
+            row.add(btn(sub.getDisplayName(), "subcat:" + sub.getId()));
+            if (row.size() == 2) { rows.add(new ArrayList<>(row)); row.clear(); }
         }
         if (!row.isEmpty()) rows.add(row);
-
-        // Кнопка "пропустить подкатегорию"
-        rows.add(List.of(button("➡ Без подкатегории", "subcat:skip")));
-
+        rows.add(List.of(btn("➡ Без подкатегории", "subcat:skip")));
         return InlineKeyboardMarkup.builder().keyboard(rows).build();
     }
 
@@ -96,17 +225,15 @@ public final class KeyboardFactory {
     public static InlineKeyboardMarkup pendingUserButtons(Long telegramId) {
         return InlineKeyboardMarkup.builder()
                 .keyboardRow(List.of(
-                        button("✅ Одобрить",      "approve:" + telegramId),
-                        button("🚫 Заблокировать", "block_user:" + telegramId)
+                        btn("✅ Одобрить",      "approve:" + telegramId),
+                        btn("🚫 Заблокировать", "block_user:" + telegramId)
                 ))
                 .build();
     }
 
     public static InlineKeyboardMarkup blockedUserButtons(Long telegramId) {
         return InlineKeyboardMarkup.builder()
-                .keyboardRow(List.of(
-                        button("✅ Разблокировать", "unblock_user:" + telegramId)
-                ))
+                .keyboardRow(List.of(btn("✅ Разблокировать", "unblock_user:" + telegramId)))
                 .build();
     }
 
@@ -117,24 +244,22 @@ public final class KeyboardFactory {
     public static InlineKeyboardMarkup subscriptionActions(List<Subscription> subs) {
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         for (Subscription sub : subs) {
-            rows.add(List.of(
-                    button("🗑 Удалить «" + sub.getName() + "»", "cancel_sub:" + sub.getId())
-            ));
+            rows.add(List.of(btn("🗑 Удалить «" + sub.getName() + "»", "cancel_sub:" + sub.getId())));
         }
-        rows.add(List.of(button("➕ Добавить подписку", "add_sub")));
+        rows.add(List.of(btn("➕ Добавить подписку", "add_sub")));
         return InlineKeyboardMarkup.builder().keyboard(rows).build();
     }
 
     // ================================================================
-    // Statistics
+    // Statistics (legacy period picker)
     // ================================================================
 
     public static InlineKeyboardMarkup statsPeriod() {
         return InlineKeyboardMarkup.builder()
                 .keyboardRow(List.of(
-                        button("📅 Сегодня", "stats:today"),
-                        button("📆 Неделя",  "stats:week"),
-                        button("🗓 Месяц",   "stats:month")
+                        btn("📅 Сегодня", "stats:today"),
+                        btn("📆 Неделя",  "stats:week"),
+                        btn("🗓 Месяц",   "stats:month")
                 ))
                 .build();
     }
@@ -143,7 +268,7 @@ public final class KeyboardFactory {
     // Helper
     // ================================================================
 
-    private static InlineKeyboardButton button(String text, String data) {
+    private static InlineKeyboardButton btn(String text, String data) {
         return InlineKeyboardButton.builder().text(text).callbackData(data).build();
     }
 }

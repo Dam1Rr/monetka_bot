@@ -146,6 +146,18 @@ public class StatisticsService {
         return sumForCurrentMonth(user, TransactionType.EXPENSE);
     }
 
+    @Transactional(readOnly = true)
+    public BigDecimal getMonthIncomeForPeriod(User user, LocalDateTime from, LocalDateTime to) {
+        BigDecimal r = transactionRepository.sumByUserAndTypeAndPeriod(user, TransactionType.INCOME, from, to);
+        return r != null ? r : BigDecimal.ZERO;
+    }
+
+    @Transactional(readOnly = true)
+    public BigDecimal getMonthExpensesForPeriod(User user, LocalDateTime from, LocalDateTime to) {
+        BigDecimal r = transactionRepository.sumByUserAndTypeAndPeriod(user, TransactionType.EXPENSE, from, to);
+        return r != null ? r : BigDecimal.ZERO;
+    }
+
     private BigDecimal sumForCurrentMonth(User user, TransactionType type) {
         LocalDate now  = LocalDate.now(BISHKEK);
         LocalDateTime from = now.withDayOfMonth(1).atStartOfDay();

@@ -39,13 +39,15 @@ public class CallbackHandler {
     private final TransactionRepository    transactionRepository;
     private final BotProperties            botProperties;
     private final AdminHandler             adminHandler;
+    private final OverviewHandler          overviewHandler;
 
     public CallbackHandler(UserService userService, UserStateService stateService,
                            TransactionService transactionService, SubscriptionService subscriptionService,
                            ReportService reportService, CategoryDetectionService detectionService,
                            CategoryRepository categoryRepository, SubcategoryRepository subcategoryRepository,
                            TransactionRepository transactionRepository, BotProperties botProperties,
-                           AdminHandler adminHandler) {
+                           AdminHandler adminHandler,
+                           OverviewHandler overviewHandler) {
         this.userService          = userService;
         this.stateService         = stateService;
         this.transactionService   = transactionService;
@@ -57,6 +59,7 @@ public class CallbackHandler {
         this.transactionRepository= transactionRepository;
         this.botProperties        = botProperties;
         this.adminHandler         = adminHandler;
+        this.overviewHandler      = overviewHandler;
     }
 
     public void handle(CallbackQuery callback, MonetkaBot bot) {
@@ -85,6 +88,7 @@ public class CallbackHandler {
         else if (data.startsWith("stats:"))        handleStats(user, data, chatId, bot);
         else if (data.startsWith("cat:"))          handleCategoryChoice(user, data, chatId, telegramId, bot);
         else if (data.startsWith("subcat:"))       handleSubcategoryChoice(user, data, chatId, telegramId, bot);
+        else if (data.startsWith("overview:"))     overviewHandler.handle(data.substring(9), user, chatId, bot);
         else log.warn("Unknown callback: {}", data);
     }
 
@@ -150,7 +154,7 @@ public class CallbackHandler {
     }
 
     // ================================================================
-    // Legacy com.monetka.admin callbacks (from old inline buttons in CommandHandler)
+    // Legacy admin callbacks (from old inline buttons in CommandHandler)
     // ================================================================
 
     private void handleApprove(String data, long chatId, long telegramId, MonetkaBot bot) {

@@ -7,7 +7,7 @@ public enum UserState {
     WAITING_EXPENSE,
     WAITING_INCOME,
 
-    // Выбор категории вручную (когда бот не уверен)
+    // Выбор категории вручную
     WAITING_CATEGORY_CHOICE,
     WAITING_SUBCATEGORY_CHOICE,
 
@@ -15,5 +15,8 @@ public enum UserState {
     WAITING_SUB_NAME,
     WAITING_SUB_AMOUNT,
     WAITING_SUB_START_DATE,
-    WAITING_SUB_END_DATE
+    WAITING_SUB_END_DATE,
+
+    // Бюджетные цели
+    WAITING_GOAL_AMOUNT
 }

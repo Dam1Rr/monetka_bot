@@ -1,5 +1,6 @@
 package com.monetka.repository;
 
+import com.monetka.model.Category;
 import com.monetka.model.Transaction;
 import com.monetka.model.User;
 import com.monetka.model.enums.TransactionType;
@@ -18,9 +19,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     List<Transaction> findByUserOrderByCreatedAtDesc(User user);
 
     List<Transaction> findByUserAndTypeOrderByCreatedAtDesc(User user, TransactionType type);
-
-    List<Transaction> findByUserAndCreatedAtBetweenOrderByCreatedAtDesc(
-            User user, LocalDateTime from, LocalDateTime to);
 
     @Query("""
         SELECT t FROM Transaction t
@@ -48,10 +46,22 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("from") LocalDateTime from,
             @Param("to")   LocalDateTime to);
 
-    /**
-     * Simple category totals — used for daily report.
-     * Returns: [catName, catEmoji, total]
-     */
+    /** Sum expenses for a specific category in a period */
+    @Query("""
+        SELECT COALESCE(SUM(t.amount), 0)
+        FROM Transaction t
+        WHERE t.user = :user
+          AND t.type = 'EXPENSE'
+          AND t.category = :category
+          AND t.createdAt BETWEEN :from AND :to
+    """)
+    BigDecimal sumByUserCategoryAndPeriod(
+            @Param("user")     User user,
+            @Param("category") Category category,
+            @Param("from")     LocalDateTime from,
+            @Param("to")       LocalDateTime to);
+
+    /** Simple category totals — used for daily report */
     @Query("""
         SELECT t.category.name, t.category.emoji, SUM(t.amount)
         FROM Transaction t
@@ -66,10 +76,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("from") LocalDateTime from,
             @Param("to")   LocalDateTime to);
 
-    /**
-     * Detailed breakdown by category + subcategory — used for /stats.
-     * Returns: [catName, catEmoji, subcatName(nullable), total]
-     */
+    /** Detailed breakdown by category + subcategory — used for /stats */
     @Query("""
         SELECT t.category.name,
                t.category.emoji,
@@ -86,6 +93,54 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("user") User user,
             @Param("from") LocalDateTime from,
             @Param("to")   LocalDateTime to);
+
+    /** Recent transactions in a category for drill-down */
+    @Query("""
+        SELECT t FROM Transaction t
+        WHERE t.user = :user
+          AND t.type = 'EXPENSE'
+          AND t.category.id = :categoryId
+          AND t.createdAt BETWEEN :from AND :to
+        ORDER BY t.createdAt DESC
+    """)
+    List<Transaction> findExpensesByCategoryAndPeriod(
+            @Param("user")       User user,
+            @Param("categoryId") Long categoryId,
+            @Param("from")       LocalDateTime from,
+            @Param("to")         LocalDateTime to);
+
+    /** Recent transactions in a subcategory for drill-down */
+    @Query("""
+        SELECT t FROM Transaction t
+        WHERE t.user = :user
+          AND t.type = 'EXPENSE'
+          AND t.subcategory.id = :subcategoryId
+          AND t.createdAt BETWEEN :from AND :to
+        ORDER BY t.createdAt DESC
+    """)
+    List<Transaction> findExpensesBySubcategoryAndPeriod(
+            @Param("user")          User user,
+            @Param("subcategoryId") Long subcategoryId,
+            @Param("from")          LocalDateTime from,
+            @Param("to")            LocalDateTime to);
+
+    /** Subcategory totals within a category */
+    @Query("""
+        SELECT t.subcategory.name, t.subcategory.emoji, SUM(t.amount)
+        FROM Transaction t
+        WHERE t.user = :user
+          AND t.type = 'EXPENSE'
+          AND t.category.id = :categoryId
+          AND t.createdAt BETWEEN :from AND :to
+          AND t.subcategory IS NOT NULL
+        GROUP BY t.subcategory.name, t.subcategory.emoji
+        ORDER BY SUM(t.amount) DESC
+    """)
+    List<Object[]> sumBySubcategoryInCategory(
+            @Param("user")       User user,
+            @Param("categoryId") Long categoryId,
+            @Param("from")       LocalDateTime from,
+            @Param("to")         LocalDateTime to);
 
     /** Global sum of all expenses — admin statistics */
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.type = 'EXPENSE'")

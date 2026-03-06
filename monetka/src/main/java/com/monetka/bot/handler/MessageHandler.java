@@ -7,6 +7,7 @@ import com.monetka.model.User;
 import com.monetka.model.enums.UserState;
 import com.monetka.model.enums.UserStatus;
 import com.monetka.service.*;
+import com.monetka.service.BudgetService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -37,10 +38,15 @@ public class MessageHandler {
     private final FinancialTipsService     tipsService;
     private final CategoryDetectionService detectionService;
 
+    private final OverviewHandler  overviewHandler;
+    private final BudgetService    budgetService;
+
     public MessageHandler(UserService userService, UserStateService stateService,
                           TransactionService transactionService, SubscriptionService subscriptionService,
                           ReportService reportService, FinancialTipsService tipsService,
-                          CategoryDetectionService detectionService) {
+                          CategoryDetectionService detectionService,
+                          OverviewHandler overviewHandler,
+                          BudgetService budgetService) {
         this.userService         = userService;
         this.stateService        = stateService;
         this.transactionService  = transactionService;
@@ -48,6 +54,8 @@ public class MessageHandler {
         this.reportService       = reportService;
         this.tipsService         = tipsService;
         this.detectionService    = detectionService;
+        this.overviewHandler     = overviewHandler;
+        this.budgetService       = budgetService;
     }
 
     public void handle(Message message, MonetkaBot bot) {
@@ -85,12 +93,15 @@ public class MessageHandler {
             case WAITING_SUB_AMOUNT     -> { handleSubAmount(text, chatId, telegramId, bot);           return; }
             case WAITING_SUB_START_DATE -> { handleSubStartDate(text, chatId, telegramId, bot);        return; }
             case WAITING_SUB_END_DATE   -> { handleSubEndDate(user, text, chatId, telegramId, bot);    return; }
+            case WAITING_GOAL_AMOUNT    -> { if (overviewHandler.handleGoalAmountInput(user, text, chatId, bot)) return; }
             default -> {}
         }
 
         switch (text) {
             case "💸 Расход" -> startExpense(chatId, telegramId, bot);
             case "💰 Доход"  -> startIncome(chatId, telegramId, bot);
+            case "📊 Обзор"  -> overviewHandler.showMain(user, chatId, bot);
+            case "🎯 Цели"   -> overviewHandler.showGoals(user, chatId, bot);
             default -> bot.sendMessage(chatId,
                     pick("Хм, не понял 🤔 Используй кнопки или команды: /balance /stats /help",
                             "Что-то не то написал, используй кнопки 👇",
@@ -143,7 +154,7 @@ public class MessageHandler {
     private void saveExpense(User user, ParseResult p,
                              CategoryDetectionService.DetectionResult detection,
                              long chatId, long telegramId, MonetkaBot bot) {
-        transactionService.addExpense(user, p.amount, p.description);
+        com.monetka.model.Transaction tx = transactionService.addExpense(user, p.amount, p.description);
         stateService.reset(telegramId);
 
         String cat = detection.display();
@@ -161,6 +172,12 @@ public class MessageHandler {
                         "🏷 " + cat + confNote + learnedNote + "\n" +
                         "💳 Баланс: *" + fmt(user.getBalance()) + "*",
                 KeyboardFactory.mainMenu());
+
+        // Budget goal alert — send after main confirmation if threshold crossed
+        if (tx.getCategory() != null) {
+            budgetService.checkAfterExpense(user, tx.getCategory())
+                    .ifPresent(alert -> bot.sendMarkdown(chatId, alert));
+        }
     }
 
     // ================================================================
