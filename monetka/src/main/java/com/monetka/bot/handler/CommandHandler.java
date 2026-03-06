@@ -82,7 +82,7 @@ public class CommandHandler {
                                 "Как только одобрят — сразу напишу! ⏳");
                 notifyAdmins(user, bot);
             }
-            case APPROVED -> bot.sendMessage(chatId,
+            case ACTIVE -> bot.sendMessage(chatId,
                     pick("👋 Привет, " + user.getDisplayName() + "! Готов считать твои деньги 💪",
                             "С возвращением, " + user.getDisplayName() + "! 🚀 Что записываем?",
                             "Привет-привет, " + user.getDisplayName() + "! 💰 Поехали!"),
@@ -243,7 +243,7 @@ public class CommandHandler {
     // ================================================================
 
     private boolean checkApproved(long chatId, long telegramId, MonetkaBot bot) {
-        if (!userService.isApproved(telegramId)) {
+        if (!userService.isActive(telegramId)) {
             bot.sendText(chatId, "⏳ Доступ ещё не подтверждён, подожди немного...");
             return false;
         }

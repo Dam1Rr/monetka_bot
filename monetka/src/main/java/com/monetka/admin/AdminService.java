@@ -56,7 +56,7 @@ public class AdminService {
 
     public List<User> getPendingUsers()  { return userRepository.findAllByStatus(UserStatus.PENDING); }
     public List<User> getBlockedUsers()  { return userRepository.findAllByStatus(UserStatus.BLOCKED); }
-    public List<User> getApprovedUsers() { return userRepository.findAllByStatus(UserStatus.APPROVED); }
+    public List<User> getActiveUsers() { return userRepository.findAllByStatus(UserStatus.ACTIVE); }
 
     // ================================================================
     // Status mutations
@@ -65,7 +65,7 @@ public class AdminService {
     @Transactional
     public Optional<User> approveUser(Long telegramId) {
         return userRepository.findByTelegramId(telegramId).map(u -> {
-            u.setStatus(UserStatus.APPROVED);
+            u.setStatus(UserStatus.ACTIVE);
             log.info("Admin approved user {}", telegramId);
             return userRepository.save(u);
         });
@@ -92,7 +92,7 @@ public class AdminService {
     @Transactional
     public Optional<User> unblockUser(Long telegramId) {
         return userRepository.findByTelegramId(telegramId).map(u -> {
-            u.setStatus(UserStatus.APPROVED);
+            u.setStatus(UserStatus.ACTIVE);
             log.info("Admin unblocked user {}", telegramId);
             return userRepository.save(u);
         });
@@ -104,7 +104,7 @@ public class AdminService {
 
     public AdminStats getStats() {
         long total    = userRepository.count();
-        long active   = userRepository.countByStatus(UserStatus.APPROVED);
+        long active   = userRepository.countByStatus(UserStatus.ACTIVE);
         long pending  = userRepository.countByStatus(UserStatus.PENDING);
         long blocked  = userRepository.countByStatus(UserStatus.BLOCKED);
         long txCount  = transactionRepository.count();
