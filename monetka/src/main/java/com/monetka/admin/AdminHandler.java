@@ -3,6 +3,7 @@ package com.monetka.admin;
 import com.monetka.bot.MonetkaBot;
 import com.monetka.config.BotProperties;
 import com.monetka.model.User;
+import com.monetka.service.OnboardingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
