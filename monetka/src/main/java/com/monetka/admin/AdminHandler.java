@@ -34,11 +34,15 @@ public class AdminHandler {
     private final BotProperties     botProperties;
     private final UserExportService exportService;
 
+    private final OnboardingService onboardingService;
+
     public AdminHandler(AdminService adminService, BotProperties botProperties,
-                        UserExportService exportService) {
-        this.adminService  = adminService;
-        this.botProperties = botProperties;
-        this.exportService = exportService;
+                        UserExportService exportService,
+                        OnboardingService onboardingService) {
+        this.adminService      = adminService;
+        this.botProperties     = botProperties;
+        this.exportService     = exportService;
+        this.onboardingService = onboardingService;
     }
 
     // ================================================================
@@ -280,10 +284,8 @@ public class AdminHandler {
         if (result.isPresent()) {
             User u = result.get();
             bot.sendMarkdown(chatId, "✅ Пользователь *" + u.getDisplayName() + "* одобрен.");
-            // Notify the user
-            bot.sendMessage(targetId,
-                    "✅ *Добро пожаловать в Monetka!*\nВаш доступ подтверждён администратором 🎉",
-                    com.monetka.bot.keyboard.KeyboardFactory.mainMenu());
+            // Start onboarding flow
+            onboardingService.sendWelcome(u, targetId);
         } else {
             bot.sendText(chatId, "Пользователь не найден.");
         }

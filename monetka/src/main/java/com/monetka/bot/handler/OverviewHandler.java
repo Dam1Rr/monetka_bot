@@ -66,6 +66,9 @@ public class OverviewHandler {
         else if (action.startsWith("del_goal:"))           deleteGoal(user, chatId, bot, parseId(action));
         else if (action.startsWith("del_tx:"))             confirmDeleteTx(user, chatId, bot, parseId(action));
         else if (action.startsWith("confirm_del:"))        doDeleteTx(user, chatId, bot, parseId(action));
+        else if (action.startsWith("edit_amount:"))        startEditAmount(user, chatId, bot, parseId(action));
+        else if (action.startsWith("edit_desc:"))          startEditDesc(user, chatId, bot, parseId(action));
+        else if (action.startsWith("view_tx:"))            showTxDetail(user, chatId, bot, parseId(action));
     }
 
     // ================================================================
@@ -477,6 +480,112 @@ public class OverviewHandler {
                         catLabel + "  →  *" + fmt(amount) + " / мес*\n\n" +
                         "Буду напоминать при 80%, 90% и 100% 💡",
                 KeyboardFactory.mainMenu());
+        return true;
+    }
+
+    // ================================================================
+    // 9. EDIT TRANSACTION
+    // ================================================================
+
+    @Transactional(readOnly = true)
+    public void showTxDetail(User user, long chatId, MonetkaBot bot, long txId) {
+        transactionRepository.findById(txId).ifPresentOrElse(tx -> {
+            if (!tx.getUser().getId().equals(user.getId())) return;
+            String catName = tx.getCategory() != null ? tx.getCategory().getDisplayName() : "—";
+            bot.sendMessage(chatId,
+                    "📝 *" + tx.getDescription() + "*\n\n" +
+                            "💸 −" + fmt(tx.getAmount()) + "\n" +
+                            "🏷 " + catName + "\n" +
+                            "📅 " + tx.getCreatedAt().toLocalDate().format(DATE_FMT) + "\n\n" +
+                            "Что хочешь сделать?",
+                    KeyboardFactory.editTxOptions(txId));
+        }, () -> bot.sendText(chatId, "Запись не найдена."));
+    }
+
+    @Transactional
+    public void startEditAmount(User user, long chatId, MonetkaBot bot, long txId) {
+        transactionRepository.findById(txId).ifPresentOrElse(tx -> {
+            if (!tx.getUser().getId().equals(user.getId())) return;
+            stateService.setState(user.getTelegramId(), UserState.WAITING_EDIT_AMOUNT);
+            stateService.putData(user.getTelegramId(), "edit_tx_id", String.valueOf(txId));
+            bot.sendMessage(chatId,
+                    "💸 *Изменить сумму*\n\n" +
+                            "Текущая: *" + fmt(tx.getAmount()) + "*\n\n" +
+                            "Введи новую сумму:",
+                    KeyboardFactory.cancelMenu());
+        }, () -> bot.sendText(chatId, "Запись не найдена."));
+    }
+
+    @Transactional
+    public void startEditDesc(User user, long chatId, MonetkaBot bot, long txId) {
+        transactionRepository.findById(txId).ifPresentOrElse(tx -> {
+            if (!tx.getUser().getId().equals(user.getId())) return;
+            stateService.setState(user.getTelegramId(), UserState.WAITING_EDIT_DESCRIPTION);
+            stateService.putData(user.getTelegramId(), "edit_tx_id", String.valueOf(txId));
+            bot.sendMessage(chatId,
+                    "📝 *Изменить описание*\n\n" +
+                            "Текущее: *" + tx.getDescription() + "*\n\n" +
+                            "Введи новое описание:",
+                    KeyboardFactory.cancelMenu());
+        }, () -> bot.sendText(chatId, "Запись не найдена."));
+    }
+
+    @Transactional
+    public boolean handleEditAmountInput(User user, String text, long chatId, MonetkaBot bot) {
+        String txIdStr = stateService.getData(user.getTelegramId(), "edit_tx_id");
+        if (txIdStr == null) { stateService.reset(user.getTelegramId()); return false; }
+
+        BigDecimal newAmount;
+        try {
+            newAmount = new BigDecimal(text.replace(",", ".").replace(" ", ""));
+            if (newAmount.compareTo(BigDecimal.ZERO) <= 0) throw new NumberFormatException();
+        } catch (NumberFormatException e) {
+            bot.sendMessage(chatId, "Введи число, например: *1500*", KeyboardFactory.cancelMenu());
+            return true;
+        }
+
+        transactionRepository.findById(Long.parseLong(txIdStr)).ifPresent(tx -> {
+            if (!tx.getUser().getId().equals(user.getId())) return;
+            BigDecimal diff = newAmount.subtract(tx.getAmount());
+            // Update user balance: if expense, adjust by diff
+            if (tx.getType().name().equals("EXPENSE")) {
+                user.setBalance(user.getBalance().subtract(diff));
+            } else {
+                user.setBalance(user.getBalance().add(diff));
+            }
+            tx.setAmount(newAmount);
+            transactionRepository.save(tx);
+            stateService.reset(user.getTelegramId());
+            bot.sendMessage(chatId,
+                    "✅ *Сумма обновлена!*\n\n" +
+                            "📝 " + tx.getDescription() + "\n" +
+                            "💸 −" + fmt(newAmount) + "\n" +
+                            "💳 Баланс: *" + fmt(user.getBalance()) + "*",
+                    KeyboardFactory.mainMenu());
+        });
+        return true;
+    }
+
+    @Transactional
+    public boolean handleEditDescInput(User user, String text, long chatId, MonetkaBot bot) {
+        String txIdStr = stateService.getData(user.getTelegramId(), "edit_tx_id");
+        if (txIdStr == null) { stateService.reset(user.getTelegramId()); return false; }
+        if (text.isBlank()) {
+            bot.sendMessage(chatId, "Описание не может быть пустым 🙏", KeyboardFactory.cancelMenu());
+            return true;
+        }
+
+        transactionRepository.findById(Long.parseLong(txIdStr)).ifPresent(tx -> {
+            if (!tx.getUser().getId().equals(user.getId())) return;
+            tx.setDescription(text.trim());
+            transactionRepository.save(tx);
+            stateService.reset(user.getTelegramId());
+            bot.sendMessage(chatId,
+                    "✅ *Описание обновлено!*\n\n" +
+                            "📝 " + text.trim() + "\n" +
+                            "💸 −" + fmt(tx.getAmount()),
+                    KeyboardFactory.mainMenu());
+        });
         return true;
     }
 

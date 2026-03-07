@@ -18,5 +18,9 @@ public enum UserState {
     WAITING_SUB_END_DATE,
 
     // Бюджетные цели
-    WAITING_GOAL_AMOUNT
+    WAITING_GOAL_AMOUNT,
+
+    // Редактирование транзакций
+    WAITING_EDIT_AMOUNT,
+    WAITING_EDIT_DESCRIPTION
 }

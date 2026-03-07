@@ -111,13 +111,12 @@ public final class KeyboardFactory {
                                                            List<Transaction> txs) {
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
 
-        // Last 3 transactions — delete buttons
+        // Last 3 transactions — view/edit buttons
         int show = Math.min(txs.size(), 3);
         for (int i = 0; i < show; i++) {
             Transaction tx = txs.get(i);
-            String label = "🗑 " + tx.getDescription() + " −" +
-                    String.format("%,.0f", tx.getAmount());
-            rows.add(List.of(btn(label, "overview:del_tx:" + tx.getId())));
+            String label = tx.getDescription() + " −" + String.format("%,.0f", tx.getAmount());
+            rows.add(List.of(btn("✏️ " + label, "overview:view_tx:" + tx.getId())));
         }
 
         if (categoryId != null)
@@ -260,6 +259,52 @@ public final class KeyboardFactory {
                         btn("📅 Сегодня", "stats:today"),
                         btn("📆 Неделя",  "stats:week"),
                         btn("🗓 Месяц",   "stats:month")
+                ))
+                .build();
+    }
+
+
+    // ================================================================
+    // Onboarding
+    // ================================================================
+
+    public static InlineKeyboardMarkup onboardingStart() {
+        return InlineKeyboardMarkup.builder()
+                .keyboardRow(List.of(
+                        btn("🚀 Поехали!", "onb:step2"),
+                        btn("Пропустить ➡",  "onb:skip")
+                ))
+                .build();
+    }
+
+    public static InlineKeyboardMarkup onboardingTryExpense() {
+        return InlineKeyboardMarkup.builder()
+                .keyboardRow(List.of(btn("Пропустить ➡", "onb:step3")))
+                .build();
+    }
+
+    public static InlineKeyboardMarkup onboardingGoalChoice() {
+        return InlineKeyboardMarkup.builder()
+                .keyboardRow(List.of(
+                        btn("🎯 Поставить цель", "onb:goals"),
+                        btn("Позже ➡",           "onb:finish")
+                ))
+                .build();
+    }
+
+    // ================================================================
+    // Edit transaction
+    // ================================================================
+
+    public static InlineKeyboardMarkup editTxOptions(long txId) {
+        return InlineKeyboardMarkup.builder()
+                .keyboardRow(List.of(
+                        btn("💸 Изменить сумму",    "overview:edit_amount:" + txId),
+                        btn("📝 Изменить описание", "overview:edit_desc:" + txId)
+                ))
+                .keyboardRow(List.of(
+                        btn("🗑 Удалить",    "overview:del_tx:" + txId),
+                        btn("← Назад",      "overview:main")
                 ))
                 .build();
     }

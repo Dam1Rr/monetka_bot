@@ -20,6 +20,7 @@ import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+import com.monetka.service.OnboardingService;
 import java.math.BigDecimal;
 import java.util.Optional;
 
@@ -40,6 +41,7 @@ public class CallbackHandler {
     private final BotProperties            botProperties;
     private final AdminHandler             adminHandler;
     private final OverviewHandler          overviewHandler;
+    private final OnboardingService        onboardingService;
 
     public CallbackHandler(UserService userService, UserStateService stateService,
                            TransactionService transactionService, SubscriptionService subscriptionService,
@@ -47,7 +49,8 @@ public class CallbackHandler {
                            CategoryRepository categoryRepository, SubcategoryRepository subcategoryRepository,
                            TransactionRepository transactionRepository, BotProperties botProperties,
                            AdminHandler adminHandler,
-                           OverviewHandler overviewHandler) {
+                           OverviewHandler overviewHandler,
+                           OnboardingService onboardingService) {
         this.userService          = userService;
         this.stateService         = stateService;
         this.transactionService   = transactionService;
@@ -60,6 +63,7 @@ public class CallbackHandler {
         this.botProperties        = botProperties;
         this.adminHandler         = adminHandler;
         this.overviewHandler      = overviewHandler;
+        this.onboardingService    = onboardingService;
     }
 
     public void handle(CallbackQuery callback, MonetkaBot bot) {
@@ -89,6 +93,7 @@ public class CallbackHandler {
         else if (data.startsWith("cat:"))          handleCategoryChoice(user, data, chatId, telegramId, bot);
         else if (data.startsWith("subcat:"))       handleSubcategoryChoice(user, data, chatId, telegramId, bot);
         else if (data.startsWith("overview:"))     overviewHandler.handle(data.substring(9), user, chatId, bot);
+        else if (data.startsWith("onb:"))            handleOnboarding(data, chatId, user, bot);
         else log.warn("Unknown callback: {}", data);
     }
 
@@ -151,6 +156,25 @@ public class CallbackHandler {
                         "\n🏷 " + catDisplay + "\n💳 Баланс: " + fmt(user.getBalance()) +
                         "\n\n💡 _Запомнил! В следующий раз определю автоматически._",
                 KeyboardFactory.mainMenu());
+    }
+
+    // ================================================================
+    // Onboarding callbacks
+    // ================================================================
+
+    private void handleOnboarding(String data, long chatId, User user, MonetkaBot bot) {
+        switch (data) {
+            case "onb:step2"  -> onboardingService.sendHowToRecord(chatId);
+            case "onb:step3"  -> onboardingService.sendSuggestGoal(chatId);
+            case "onb:goals"  -> {
+                overviewHandler.showGoals(user, chatId, bot);
+                // After showing goals, send finish message
+                onboardingService.sendFinish(chatId);
+            }
+            case "onb:finish" -> onboardingService.sendFinish(chatId);
+            case "onb:skip"   -> onboardingService.sendSkip(chatId);
+            default           -> onboardingService.sendFinish(chatId);
+        }
     }
 
     // ================================================================
