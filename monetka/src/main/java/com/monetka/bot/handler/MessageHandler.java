@@ -215,9 +215,11 @@ public class MessageHandler {
         paydayService.onIncome(user, p.amount);
         stateService.reset(telegramId);
 
-        // Show updated daily budget
+        // Show updated daily budget based on real days left in month
         String cycleHint = paydayService.getCycleStatus(user)
-                .map(s -> "\n\n📅 _Бюджет: " + String.format("%,.0f сом/день", s.dailyBudget) + "_")
+                .map(s -> "\n\n\uD83D\uDCC5 _\u0411\u044e\u0434\u0436\u0435\u0442: " +
+                        String.format("%,.0f \u0441\u043e\u043c/\u0434\u0435\u043d\u044c" , s.dailyBudget) +
+                        " (\u043e\u0441\u0442\u0430\u043b\u043e\u0441\u044c " + s.daysLeft + " \u0434\u043d.)_")
                 .orElse("");
 
         bot.sendMessage(chatId,

@@ -6,6 +6,7 @@ import com.monetka.model.*;
 import com.monetka.model.enums.UserState;
 import com.monetka.repository.*;
 import com.monetka.service.*;
+import com.monetka.service.PaydayService;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,19 +31,22 @@ public class OverviewHandler {
     private final TransactionRepository transactionRepository;
     private final CategoryRepository    categoryRepository;
     private final SubcategoryRepository subcategoryRepository;
+    private final PaydayService         paydayService;
 
     public OverviewHandler(StatisticsService statisticsService,
                            BudgetService budgetService,
                            UserStateService stateService,
                            TransactionRepository transactionRepository,
                            CategoryRepository categoryRepository,
-                           SubcategoryRepository subcategoryRepository) {
+                           SubcategoryRepository subcategoryRepository,
+                           PaydayService paydayService) {
         this.statisticsService     = statisticsService;
         this.budgetService         = budgetService;
         this.stateService          = stateService;
         this.transactionRepository = transactionRepository;
         this.categoryRepository    = categoryRepository;
         this.subcategoryRepository = subcategoryRepository;
+        this.paydayService         = paydayService;
     }
 
     // ================================================================
@@ -124,6 +128,9 @@ public class OverviewHandler {
         } else {
             sb.append("\n_\u0420\u0430\u0441\u0445\u043e\u0434\u043e\u0432 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442 \uD83C\uDF31_");
         }
+
+        // Append payday smart analysis if cycle active
+        paydayService.getSmartAnalysis(user).ifPresent(sb::append);
 
         bot.sendMessage(chatId, sb.toString(), KeyboardFactory.overviewMain(cats, categoryRepository));
     }

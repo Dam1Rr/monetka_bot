@@ -12,122 +12,63 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
-/**
- * Manages payday cycles — tracks spending pace between income events.
- *
- * Rules:
- *  - Every income (salary or other) creates or updates the active cycle.
- *  - Cycle has no fixed end date — it runs until next income.
- *  - After each expense, caller can ask for a pace hint via getPaceHint().
- *  - No separate accounts, no user choices — everything is automatic.
- */
 @Service
 public class PaydayService {
 
     private static final ZoneId BISHKEK = ZoneId.of("Asia/Bishkek");
 
-    private final PaydayCycleRepository  cycleRepository;
-    private final TransactionRepository  transactionRepository;
+    private final PaydayCycleRepository cycleRepository;
+    private final TransactionRepository transactionRepository;
 
     public PaydayService(PaydayCycleRepository cycleRepository,
                          TransactionRepository transactionRepository) {
-        this.cycleRepository     = cycleRepository;
+        this.cycleRepository      = cycleRepository;
         this.transactionRepository = transactionRepository;
     }
 
     // ================================================================
-    // Called after EVERY income — creates new cycle or adds to current
+    // Called after EVERY income — creates new cycle or updates current
     // ================================================================
 
     @Transactional
     public void onIncome(User user, BigDecimal amount) {
         Optional<PaydayCycle> existing = cycleRepository.findByUserAndActiveTrue(user);
-
         if (existing.isPresent()) {
-            // Add income to current cycle (handles mid-cycle freelance etc.)
             PaydayCycle cycle = existing.get();
             cycle.setTotalIncome(cycle.getTotalIncome().add(amount));
             cycleRepository.save(cycle);
         } else {
-            // Start fresh cycle
             cycleRepository.save(new PaydayCycle(user, amount));
         }
     }
 
     // ================================================================
-    // Called after every EXPENSE — returns optional hint line
-    // Returns empty if no active cycle or not enough data
+    // Pace hint — one line after each expense
     // ================================================================
 
     @Transactional(readOnly = true)
     public Optional<String> getPaceHint(User user) {
-        Optional<PaydayCycle> cycleOpt = cycleRepository.findByUserAndActiveTrue(user);
-        if (cycleOpt.isEmpty()) return Optional.empty();
-
-        PaydayCycle cycle = cycleOpt.get();
-        LocalDate today     = LocalDate.now(BISHKEK);
-        LocalDate startDate = cycle.getStartDate();
-
-        long daysPassed = ChronoUnit.DAYS.between(startDate, today) + 1;
-
-        // Calculate spent since cycle start
-        LocalDateTime cycleFrom = startDate.atStartOfDay();
-        LocalDateTime cycleTo   = today.plusDays(1).atStartOfDay();
-        BigDecimal spent = safe(transactionRepository.sumByUserAndTypeAndPeriod(
-                user, TransactionType.EXPENSE, cycleFrom, cycleTo));
-
-        BigDecimal totalIncome = cycle.getTotalIncome();
-        BigDecimal remaining   = totalIncome.subtract(spent);
-
-        if (totalIncome.compareTo(BigDecimal.ZERO) == 0) return Optional.empty();
-
-        // Daily budget = total / assumed 30 days (or days passed if > 30)
-        long totalDays = Math.max(30, daysPassed);
-        BigDecimal dailyBudget = totalIncome
-                .divide(BigDecimal.valueOf(totalDays), 0, RoundingMode.HALF_UP);
-
-        // Actual daily spend rate
-        BigDecimal actualDaily = daysPassed > 0
-                ? spent.divide(BigDecimal.valueOf(daysPassed), 0, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO;
-
-        // Days remaining at current pace
-        long daysLeft = remaining.compareTo(BigDecimal.ZERO) > 0 && actualDaily.compareTo(BigDecimal.ZERO) > 0
-                ? remaining.divide(actualDaily, 0, RoundingMode.DOWN).longValue()
-                : 0;
-
-        // Build hint
-        int spentPct = spent.multiply(BigDecimal.valueOf(100))
-                .divide(totalIncome, 0, RoundingMode.HALF_UP).intValue();
-
-        if (actualDaily.compareTo(dailyBudget) <= 0) {
-            // On track
-            return Optional.of(
-                    "\uD83D\uDCC5 \u0414\u0435\u043d\u044c " + daysPassed + " \u0446\u0438\u043a\u043b\u0430  \u2022  " +
-                            "\u0442\u0440\u0430\u0447\u0443 " + fmt(actualDaily) + "/\u0434\u0435\u043d\u044c \u2705"
-            );
-        } else if (spentPct >= 90) {
-            // Critical
-            return Optional.of(
-                    "\uD83D\uDD34 \u041f\u043e\u0442\u0440\u0430\u0447\u0435\u043d\u043e " + spentPct + "% \u0431\u044e\u0434\u0436\u0435\u0442\u0430  \u2022  " +
-                            "\u043e\u0441\u0442\u0430\u043b\u043e\u0441\u044c *" + fmt(remaining) + "*"
-            );
-        } else {
-            // Warning
-            return Optional.of(
-                    "\uD83D\uDFE1 " + fmt(actualDaily) + "/\u0434\u0435\u043d\u044c" +
-                            " (\u043f\u043b\u0430\u043d " + fmt(dailyBudget) + ")  \u2022  " +
-                            "\u043e\u0441\u0442\u0430\u043b\u043e\u0441\u044c *" + fmt(remaining) + "*"
-            );
-        }
+        return getCycleStatus(user).map(s -> {
+            if (s.daysLeft <= 0) return null;
+            int cmp = s.actualDaily.compareTo(s.dailyBudget);
+            if (cmp <= 0) {
+                return "\uD83D\uDCC5 \u0414\u0435\u043d\u044c " + s.daysPassed +
+                        "  \u2022  \u0442\u0440\u0430\u0447\u0443 " + fmt(s.actualDaily) + "/\u0434\u0435\u043d\u044c \u2705";
+            } else {
+                return "\uD83D\uDFE1 \u0422\u0440\u0430\u0447\u0443 " + fmt(s.actualDaily) +
+                        "/\u0434\u0435\u043d\u044c  \u2022  \u043e\u0441\u0442\u0430\u043b\u043e\u0441\u044c *" +
+                        fmt(s.remaining) + "*";
+            }
+        }).filter(h -> h != null);
     }
 
     // ================================================================
-    // Full cycle status — for /день command or overview
+    // Full cycle status
     // ================================================================
 
     @Transactional(readOnly = true)
@@ -135,35 +76,107 @@ public class PaydayService {
         Optional<PaydayCycle> cycleOpt = cycleRepository.findByUserAndActiveTrue(user);
         if (cycleOpt.isEmpty()) return Optional.empty();
 
-        PaydayCycle cycle = cycleOpt.get();
-        LocalDate today     = LocalDate.now(BISHKEK);
-        LocalDate startDate = cycle.getStartDate();
-        long daysPassed = ChronoUnit.DAYS.between(startDate, today) + 1;
+        PaydayCycle cycle  = cycleOpt.get();
+        LocalDate today    = LocalDate.now(BISHKEK);
+        LocalDate start    = cycle.getStartDate();
 
-        LocalDateTime from = startDate.atStartOfDay();
+        // Days passed since cycle start (minimum 1)
+        long daysPassed = Math.max(1, ChronoUnit.DAYS.between(start, today) + 1);
+
+        // Days left until end of current month
+        LocalDate endOfMonth = YearMonth.from(today).atEndOfMonth();
+        long daysLeft = ChronoUnit.DAYS.between(today, endOfMonth); // 0 on last day
+
+        // Total cycle days = days passed + days left
+        long totalCycleDays = daysPassed + daysLeft;
+
+        // Spent since cycle start
+        LocalDateTime from = start.atStartOfDay();
         LocalDateTime to   = today.plusDays(1).atStartOfDay();
-        BigDecimal spent = safe(transactionRepository.sumByUserAndTypeAndPeriod(
+        BigDecimal spent   = safe(transactionRepository.sumByUserAndTypeAndPeriod(
                 user, TransactionType.EXPENSE, from, to));
 
         BigDecimal totalIncome = cycle.getTotalIncome();
         BigDecimal remaining   = totalIncome.subtract(spent);
 
-        long totalDays = Math.max(30, daysPassed);
-        BigDecimal dailyBudget = totalIncome
-                .divide(BigDecimal.valueOf(totalDays), 0, RoundingMode.HALF_UP);
-        BigDecimal actualDaily = daysPassed > 0
-                ? spent.divide(BigDecimal.valueOf(daysPassed), 0, RoundingMode.HALF_UP)
+        // Daily budget based on REAL remaining days in month
+        // remaining money / remaining days (min 1 to avoid division by zero)
+        long budgetDays = Math.max(1, daysLeft + 1); // +1 to include today
+        BigDecimal dailyBudget = remaining.compareTo(BigDecimal.ZERO) > 0
+                ? remaining.divide(BigDecimal.valueOf(budgetDays), 0, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
+
+        // Actual daily spend rate
+        BigDecimal actualDaily = spent.divide(BigDecimal.valueOf(daysPassed), 0, RoundingMode.HALF_UP);
+
+        // Forecast: how much will be spent by end of month at current pace
+        BigDecimal forecast = actualDaily.multiply(BigDecimal.valueOf(totalCycleDays));
 
         return Optional.of(new CycleStatus(
                 totalIncome, spent, remaining,
-                dailyBudget, actualDaily,
-                daysPassed, startDate
+                dailyBudget, actualDaily, forecast,
+                daysPassed, daysLeft, totalCycleDays,
+                start, endOfMonth
         ));
     }
 
     // ================================================================
-    // Inner class — cycle status DTO
+    // Smart analysis text for Overview screen
+    // ================================================================
+
+    @Transactional(readOnly = true)
+    public Optional<String> getSmartAnalysis(User user) {
+        return getCycleStatus(user).map(s -> {
+            StringBuilder sb = new StringBuilder();
+            sb.append("\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n");
+            sb.append("\uD83D\uDCB0 *\u0414\u043e \u043a\u043e\u043d\u0446\u0430 \u043c\u0435\u0441\u044f\u0446\u0430*\n\n");
+
+            // Days info
+            sb.append("\uD83D\uDCC5 \u041e\u0441\u0442\u0430\u043b\u043e\u0441\u044c \u0434\u043d\u0435\u0439: *").append(s.daysLeft).append("*\n");
+            sb.append("\uD83D\uDCB5 \u041e\u0441\u0442\u0430\u0442\u043e\u043a: *").append(fmt(s.remaining)).append("*\n");
+            sb.append("\uD83D\uDCCA \u041c\u043e\u0436\u043d\u043e \u0442\u0440\u0430\u0442\u0438\u0442\u044c: *").append(fmt(s.dailyBudget)).append("/\u0434\u0435\u043d\u044c*\n");
+
+            // Pace analysis
+            sb.append("\n");
+            int pct = s.totalIncome.compareTo(BigDecimal.ZERO) > 0
+                    ? s.spent.multiply(BigDecimal.valueOf(100))
+                    .divide(s.totalIncome, 0, RoundingMode.HALF_UP).intValue()
+                    : 0;
+
+            int cmp = s.actualDaily.compareTo(s.dailyBudget);
+            if (cmp <= 0) {
+                // On track or ahead
+                BigDecimal saved = s.totalIncome.subtract(s.forecast);
+                if (saved.compareTo(BigDecimal.ZERO) > 0) {
+                    sb.append("\u2705 *\u041e\u0442\u043b\u0438\u0447\u043d\u044b\u0439 \u0442\u0435\u043c\u043f!*\n");
+                    sb.append("\uD83C\uDFAF \u041f\u0440\u0438 \u0442\u0430\u043a\u043e\u043c \u0442\u0435\u043c\u043f\u0435 \u0441\u0431\u0435\u0440\u0435\u0436\u0451\u0448\u044c *");
+                    sb.append(fmt(saved)).append("*\n");
+                } else {
+                    sb.append("\u2705 *\u0422\u0440\u0430\u0442\u0438\u0448\u044c \u0432 \u043f\u043b\u0430\u043d\u0435*\n");
+                }
+            } else {
+                // Over budget
+                BigDecimal overPerDay = s.actualDaily.subtract(s.dailyBudget);
+                BigDecimal deficit    = s.forecast.subtract(s.totalIncome);
+                sb.append("\uD83D\uDFE1 *\u041e\u043f\u0435\u0440\u0435\u0436\u0430\u0435\u0448\u044c \u043f\u043b\u0430\u043d*\n");
+                sb.append("\u041f\u0435\u0440\u0435\u0440\u0430\u0441\u0445\u043e\u0434 +").append(fmt(overPerDay)).append("/\u0434\u0435\u043d\u044c\n");
+                if (deficit.compareTo(BigDecimal.ZERO) > 0) {
+                    sb.append("\u26A0\uFE0F \u041f\u0440\u043e\u0433\u043d\u043e\u0437: \u043d\u0435 \u0445\u0432\u0430\u0442\u0438\u0442 *")
+                            .append(fmt(deficit)).append("*\n");
+                }
+            }
+
+            // Forecast line
+            sb.append("\n\uD83D\uDD2E \u041f\u0440\u043e\u0433\u043d\u043e\u0437 \u0434\u043e ");
+            sb.append(s.endOfMonth.getDayOfMonth()).append(" \u0447\u0438\u0441\u043b\u0430: *\u2212");
+            sb.append(fmt(s.forecast)).append("*");
+
+            return sb.toString();
+        });
+    }
+
+    // ================================================================
+    // DTO
     // ================================================================
 
     public static class CycleStatus {
@@ -172,26 +185,31 @@ public class PaydayService {
         public final BigDecimal remaining;
         public final BigDecimal dailyBudget;
         public final BigDecimal actualDaily;
-        public final long daysPassed;
-        public final LocalDate startDate;
+        public final BigDecimal forecast;
+        public final long       daysPassed;
+        public final long       daysLeft;
+        public final long       totalCycleDays;
+        public final LocalDate  startDate;
+        public final LocalDate  endOfMonth;
 
         public CycleStatus(BigDecimal totalIncome, BigDecimal spent,
                            BigDecimal remaining, BigDecimal dailyBudget,
-                           BigDecimal actualDaily, long daysPassed,
-                           LocalDate startDate) {
-            this.totalIncome  = totalIncome;
-            this.spent        = spent;
-            this.remaining    = remaining;
-            this.dailyBudget  = dailyBudget;
-            this.actualDaily  = actualDaily;
-            this.daysPassed   = daysPassed;
-            this.startDate    = startDate;
+                           BigDecimal actualDaily, BigDecimal forecast,
+                           long daysPassed, long daysLeft, long totalCycleDays,
+                           LocalDate startDate, LocalDate endOfMonth) {
+            this.totalIncome    = totalIncome;
+            this.spent          = spent;
+            this.remaining      = remaining;
+            this.dailyBudget    = dailyBudget;
+            this.actualDaily    = actualDaily;
+            this.forecast       = forecast;
+            this.daysPassed     = daysPassed;
+            this.daysLeft       = daysLeft;
+            this.totalCycleDays = totalCycleDays;
+            this.startDate      = startDate;
+            this.endOfMonth     = endOfMonth;
         }
     }
-
-    // ================================================================
-    // Helpers
-    // ================================================================
 
     private BigDecimal safe(BigDecimal v) { return v != null ? v : BigDecimal.ZERO; }
     private String fmt(BigDecimal v)      { return String.format("%,.0f \u0441\u043e\u043c", v); }
