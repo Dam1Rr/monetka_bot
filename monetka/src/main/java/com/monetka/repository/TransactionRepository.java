@@ -46,7 +46,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("from") LocalDateTime from,
             @Param("to")   LocalDateTime to);
 
-    /** Sum expenses for a specific category in a period */
     @Query("""
         SELECT COALESCE(SUM(t.amount), 0)
         FROM Transaction t
@@ -61,7 +60,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("from")     LocalDateTime from,
             @Param("to")       LocalDateTime to);
 
-    /** Simple category totals — used for daily report */
     @Query("""
         SELECT t.category.name, t.category.emoji, SUM(t.amount)
         FROM Transaction t
@@ -76,7 +74,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("from") LocalDateTime from,
             @Param("to")   LocalDateTime to);
 
-    /** Detailed breakdown by category + subcategory — used for /stats */
     @Query("""
         SELECT t.category.name,
                t.category.emoji,
@@ -94,7 +91,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("from") LocalDateTime from,
             @Param("to")   LocalDateTime to);
 
-    /** Recent transactions in a category for drill-down */
     @Query("""
         SELECT t FROM Transaction t
         WHERE t.user = :user
@@ -109,7 +105,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("from")       LocalDateTime from,
             @Param("to")         LocalDateTime to);
 
-    /** Recent transactions in a subcategory for drill-down */
     @Query("""
         SELECT t FROM Transaction t
         WHERE t.user = :user
@@ -124,7 +119,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("from")          LocalDateTime from,
             @Param("to")            LocalDateTime to);
 
-    /** Subcategory totals within a category */
     @Query("""
         SELECT t.subcategory.name, t.subcategory.emoji, SUM(t.amount)
         FROM Transaction t
@@ -142,15 +136,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("from")       LocalDateTime from,
             @Param("to")         LocalDateTime to);
 
-    /** Global sum of all expenses — admin statistics */
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.type = 'EXPENSE'")
     BigDecimal sumAllExpenses();
 
-    // ================================================================
-    // Activity monitoring queries
-    // ================================================================
+    // ── Activity monitoring ──────────────────────────────────────────
 
-    /** Count distinct users who had transactions in a period */
     @Query("""
         SELECT COUNT(DISTINCT t.user.id)
         FROM Transaction t
@@ -160,7 +150,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("from") LocalDateTime from,
             @Param("to")   LocalDateTime to);
 
-    /** Count total transactions in a period */
     @Query("""
         SELECT COUNT(t)
         FROM Transaction t
@@ -170,7 +159,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("from") LocalDateTime from,
             @Param("to")   LocalDateTime to);
 
-    /** Top N active users by transaction count in a period */
     @Query("""
         SELECT t.user, COUNT(t) as cnt
         FROM Transaction t
@@ -182,7 +170,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("from") LocalDateTime from,
             @Param("to")   LocalDateTime to);
 
-    /** Count transactions per user — for retention table */
     @Query("""
         SELECT t.user, COUNT(t) as cnt,
                MAX(t.createdAt) as lastActivity
