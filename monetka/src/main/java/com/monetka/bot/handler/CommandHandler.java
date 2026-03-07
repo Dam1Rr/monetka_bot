@@ -8,6 +8,7 @@ import com.monetka.model.Subscription;
 import com.monetka.model.User;
 import com.monetka.model.enums.UserStatus;
 import com.monetka.service.*;
+import com.monetka.service.BotSettingsService;
 import com.monetka.service.PaydayService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,11 +34,13 @@ public class CommandHandler {
     private final BotProperties       botProperties;
     private final AdminHandler        adminHandler;
     private final PaydayService       paydayService;
+    private final BotSettingsService  botSettingsService;
 
     public CommandHandler(UserService userService, UserStateService stateService,
                           ReportService reportService, SubscriptionService subscriptionService,
                           BotProperties botProperties, AdminHandler adminHandler,
-                          PaydayService paydayService) {
+                          PaydayService paydayService,
+                          BotSettingsService botSettingsService) {
         this.userService         = userService;
         this.stateService        = stateService;
         this.reportService       = reportService;
@@ -45,6 +48,7 @@ public class CommandHandler {
         this.botProperties       = botProperties;
         this.adminHandler        = adminHandler;
         this.paydayService       = paydayService;
+        this.botSettingsService  = botSettingsService;
     }
 
     public void handle(Message message, MonetkaBot bot) {
@@ -81,11 +85,19 @@ public class CommandHandler {
 
         switch (user.getStatus()) {
             case PENDING -> {
-                bot.sendText(chatId,
-                        "👋 Привет, " + user.getDisplayName() + "!\n\n" +
-                                "Заявка отправлена администратору 📨\n" +
-                                "Как только одобрят — сразу напишу! ⏳");
-                notifyAdmins(user, bot);
+                if (botSettingsService.isRegistrationOpen()) {
+                    // Auto-approve — open registration mode
+                    userService.approveUser(telegramId);
+                    notifyAdminsNewUser(user, bot);
+                    onboardingService.sendWelcome(user, chatId, bot);
+                } else {
+                    // Invite-only — wait for manual approval
+                    bot.sendText(chatId,
+                            "👋 Привет, " + user.getDisplayName() + "!\n\n" +
+                                    "Заявка отправлена администратору 📨\n" +
+                                    "Как только одобрят — сразу напишу! ⏳");
+                    notifyAdmins(user, bot);
+                }
             }
             case ACTIVE -> bot.sendMessage(chatId,
                     pick("👋 Привет, " + user.getDisplayName() + "! Готов считать твои деньги 💪",
@@ -240,6 +252,15 @@ public class CommandHandler {
         String msg = "🆕 *Новая заявка!*\n\n👤 " + user.getDisplayName() + "\n🆔 `" + user.getTelegramId() + "`";
         for (Long adminId : botProperties.getAdminIds()) {
             bot.sendMessage(adminId, msg, KeyboardFactory.pendingUserButtons(user.getTelegramId()));
+        }
+    }
+
+    // Silent notification for auto-approved users (open mode)
+    private void notifyAdminsNewUser(User user, MonetkaBot bot) {
+        String msg = "✅ *Новый пользователь*\n\n👤 " + user.getDisplayName() +
+                "\n🆔 `" + user.getTelegramId() + "`\n\n_Одобрен автоматически_";
+        for (Long adminId : botProperties.getAdminIds()) {
+            bot.sendMarkdown(adminId, msg);
         }
     }
 

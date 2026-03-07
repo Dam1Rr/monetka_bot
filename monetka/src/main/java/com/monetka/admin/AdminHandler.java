@@ -1,6 +1,7 @@
 package com.monetka.admin;
 
 import com.monetka.bot.MonetkaBot;
+import com.monetka.service.BotSettingsService;
 import com.monetka.config.BotProperties;
 import com.monetka.model.User;
 import com.monetka.service.OnboardingService;
@@ -36,14 +37,17 @@ public class AdminHandler {
     private final UserExportService exportService;
 
     private final OnboardingService onboardingService;
+    private final BotSettingsService botSettingsService;
 
     public AdminHandler(AdminService adminService, BotProperties botProperties,
                         UserExportService exportService,
-                        OnboardingService onboardingService) {
+                        OnboardingService onboardingService,
+                        BotSettingsService botSettingsService) {
         this.adminService      = adminService;
         this.botProperties     = botProperties;
         this.exportService     = exportService;
-        this.onboardingService = onboardingService;
+        this.onboardingService  = onboardingService;
+        this.botSettingsService = botSettingsService;
     }
 
     // ================================================================
@@ -94,7 +98,22 @@ public class AdminHandler {
         else if (action.startsWith("reject:"))       rejectUser(action, chatId, bot);
         else if (action.startsWith("block:"))        blockUser(action, chatId, bot);
         else if (action.startsWith("unblock:"))      unblockUser(action, chatId, bot);
+        else if (action.equals("toggle_reg"))         toggleRegistration(chatId, bot);
         else log.warn("Unknown admin callback: {}", data);
+    }
+
+    // ================================================================
+    // Registration mode toggle
+    // ================================================================
+
+    private void toggleRegistration(long chatId, MonetkaBot bot) {
+        boolean nowOpen = !botSettingsService.isRegistrationOpen();
+        botSettingsService.setRegistrationOpen(nowOpen);
+        String msg = nowOpen
+                ? "🟢 *Регистрация открыта*\n\nТеперь все могут пользоваться ботом без одобрения."
+                : "🔴 *Регистрация по заявкам*\n\nНовые пользователи ждут одобрения администратора.";
+        bot.sendMarkdown(chatId, msg);
+        sendMainMenu(chatId, bot);
     }
 
     // ================================================================
@@ -102,9 +121,10 @@ public class AdminHandler {
     // ================================================================
 
     private void sendMainMenu(long chatId, MonetkaBot bot) {
+        boolean open = botSettingsService.isRegistrationOpen();
         bot.sendMessage(chatId,
                 "🛡 *Панель администратора*\n\nВыберите раздел:",
-                AdminKeyboardFactory.mainMenu());
+                AdminKeyboardFactory.mainMenu(open));
     }
 
     // ================================================================

@@ -26,15 +26,18 @@ public class ReportService {
     private final SubscriptionService   subscriptionService;
     private final FinancialTipsService  tipsService;
     private final TransactionRepository transactionRepository;
+    private final PaydayService         paydayService;
 
     public ReportService(StatisticsService statisticsService,
                          SubscriptionService subscriptionService,
                          FinancialTipsService tipsService,
-                         TransactionRepository transactionRepository) {
+                         TransactionRepository transactionRepository,
+                         PaydayService paydayService) {
         this.statisticsService  = statisticsService;
         this.subscriptionService = subscriptionService;
         this.tipsService         = tipsService;
         this.transactionRepository = transactionRepository;
+        this.paydayService         = paydayService;
     }
 
     // ================================================================
@@ -73,6 +76,32 @@ public class ReportService {
         }
 
         sb.append("\n💳 Баланс: *").append(fmt(user.getBalance())).append("*");
+
+        // Payday cycle — show tomorrow's budget
+        paydayService.getCycleStatus(user).ifPresent(s -> {
+            sb.append("\n\n────────────────\n");
+            if (expense.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                int cmp = expense.compareTo(s.dailyBudget);
+                if (cmp <= 0) {
+                    sb.append("\u2705 \u0421\u0435\u0433\u043e\u0434\u043d\u044f \u0432 \u043f\u043b\u0430\u043d\u0435!\n");
+                } else {
+                    java.math.BigDecimal over = expense.subtract(s.dailyBudget);
+                    sb.append("\u26A0\uFE0F \u041f\u0440\u0435\u0432\u044b\u0448\u0435\u043d\u0438\u0435: *+")
+                            .append(fmt(over)).append("*\n");
+                }
+            }
+            long tomorrowDays = Math.max(1, s.daysLeft);
+            java.math.BigDecimal tomorrowBudget = s.remaining
+                    .divide(java.math.BigDecimal.valueOf(tomorrowDays),
+                            0, java.math.RoundingMode.HALF_UP);
+            sb.append("\uD83D\uDCC5 \u041e\u0441\u0442\u0430\u043b\u043e\u0441\u044c \u0434\u043d\u0435\u0439: *")
+                    .append(s.daysLeft).append("*\n");
+            sb.append("\uD83D\uDCB5 \u041e\u0441\u0442\u0430\u0442\u043e\u043a: *")
+                    .append(fmt(s.remaining)).append("*\n");
+            sb.append("\uD83D\uDCCA \u0417\u0430\u0432\u0442\u0440\u0430 \u043c\u043e\u0436\u043d\u043e: *")
+                    .append(fmt(tomorrowBudget)).append("/\u0434\u0435\u043d\u044c*");
+        });
+
         sb.append("\n\n").append(tipsService.randomTip());
         return sb.toString();
     }

@@ -19,12 +19,14 @@ public final class AdminKeyboardFactory {
     // Main menu
     // ================================================================
 
-    public static InlineKeyboardMarkup mainMenu() {
+    public static InlineKeyboardMarkup mainMenu(boolean registrationOpen) {
+        String modeLabel = registrationOpen ? "🟢 Регистрация: открытая" : "🔴 Регистрация: по заявкам";
         return InlineKeyboardMarkup.builder()
                 .keyboardRow(row(btn("📥 Заявки",           "adm:pending"),
                         btn("🚫 Заблокированные",  "adm:blocked")))
                 .keyboardRow(row(btn("👥 Пользователи",     "adm:users"),
                         btn("📊 Статистика",        "adm:stats")))
+                .keyboardRow(row(btn(modeLabel,              "adm:toggle_reg")))
                 .keyboardRow(row(btn("📁 Выгрузить список", "adm:export")))
                 .keyboardRow(row(btn("🧹 Очистить данные",  "adm:wipe_1")))
                 .build();
