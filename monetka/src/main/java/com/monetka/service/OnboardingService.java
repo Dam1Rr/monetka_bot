@@ -7,101 +7,70 @@ import org.springframework.stereotype.Service;
 
 /**
  * Manages the onboarding flow for newly approved users.
- *
- * Flow:
- *   Step 1 — Welcome + "Поехали!" button          (sent on approval)
- *   Step 2 — How to record expense + example       (after "Поехали!")
- *   Step 3 — Suggest setting first goal            (after "onb:try_done")
- *   Step 4 — All done, show main menu              (after goal choice)
- *
- * All steps are driven by onb:* callbacks from CallbackHandler.
+ * MonetkaBot is passed as a parameter (not injected) to avoid circular dependency.
  */
 @Service
 public class OnboardingService {
 
-    private final MonetkaBot bot;
+    // No MonetkaBot injection — passed as method param to break circular dependency
 
-    public OnboardingService(MonetkaBot bot) {
-        this.bot = bot;
-    }
-
-    // ================================================================
-    // Step 1 — sent right after admin approves user
-    // ================================================================
-
-    public void sendWelcome(User user, long chatId) {
+    public void sendWelcome(User user, long chatId, MonetkaBot bot) {
         String name = user.getDisplayName();
         bot.sendMessage(chatId,
-                "🎉 *Добро пожаловать в Monetka, " + name + "!*\n\n" +
-                        "Я помогу тебе понять куда уходят деньги — " +
-                        "без таблиц и сложных настроек.\n\n" +
-                        "За 2 минуты покажу как всё работает 👇",
+                "\uD83C\uDF89 *\u0414\u043e\u0431\u0440\u043e \u043f\u043e\u0436\u0430\u043b\u043e\u0432\u0430\u0442\u044c \u0432 Monetka, " + name + "!*\n\n" +
+                        "\u042f \u043f\u043e\u043c\u043e\u0433\u0443 \u0442\u0435\u0431\u0435 \u043f\u043e\u043d\u044f\u0442\u044c \u043a\u0443\u0434\u0430 \u0443\u0445\u043e\u0434\u044f\u0442 \u0434\u0435\u043d\u044c\u0433\u0438 \u2014 " +
+                        "\u0431\u0435\u0437 \u0442\u0430\u0431\u043b\u0438\u0446 \u0438 \u0441\u043b\u043e\u0436\u043d\u044b\u0445 \u043d\u0430\u0441\u0442\u0440\u043e\u0435\u043a.\n\n" +
+                        "\u0417\u0430 2 \u043c\u0438\u043d\u0443\u0442\u044b \u043f\u043e\u043a\u0430\u0436\u0443 \u043a\u0430\u043a \u0432\u0441\u0451 \u0440\u0430\u0431\u043e\u0442\u0430\u0435\u0442 \uD83D\uDC47",
                 KeyboardFactory.onboardingStart());
     }
 
-    // ================================================================
-    // Step 2 — how to record expense
-    // ================================================================
-
-    public void sendHowToRecord(long chatId) {
+    public void sendHowToRecord(long chatId, MonetkaBot bot) {
         bot.sendMessage(chatId,
-                "💸 *Как записать расход*\n\n" +
-                        "Нажми кнопку *💸 Расход* и напиши\n" +
-                        "название и сумму в одном сообщении:\n\n" +
-                        "  `шаурма 300`\n" +
-                        "  `такси 500`\n" +
-                        "  `кофе 150`\n\n" +
-                        "Я сам определю категорию — " +
-                        "а если не знаю, спрошу один раз " +
-                        "и запомню навсегда 🧠\n\n" +
-                        "Попробуй прямо сейчас — " +
-                        "нажми *💸 Расход* и введи любой расход 👇",
+                "\uD83D\uDCB8 *\u041a\u0430\u043a \u0437\u0430\u043f\u0438\u0441\u0430\u0442\u044c \u0440\u0430\u0441\u0445\u043e\u0434*\n\n" +
+                        "\u041d\u0430\u0436\u043c\u0438 \u043a\u043d\u043e\u043f\u043a\u0443 *\uD83D\uDCB8 \u0420\u0430\u0441\u0445\u043e\u0434* \u0438 \u043d\u0430\u043f\u0438\u0448\u0438\n" +
+                        "\u043d\u0430\u0437\u0432\u0430\u043d\u0438\u0435 \u0438 \u0441\u0443\u043c\u043c\u0443 \u0432 \u043e\u0434\u043d\u043e\u043c \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0438:\n\n" +
+                        "  `\u0448\u0430\u0443\u0440\u043c\u0430 300`\n" +
+                        "  `\u0442\u0430\u043a\u0441\u0438 500`\n" +
+                        "  `\u043a\u043e\u0444\u0435 150`\n\n" +
+                        "\u042f \u0441\u0430\u043c \u043e\u043f\u0440\u0435\u0434\u0435\u043b\u044e \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044e \u2014 " +
+                        "\u0430 \u0435\u0441\u043b\u0438 \u043d\u0435 \u0437\u043d\u0430\u044e, \u0441\u043f\u0440\u043e\u0448\u0443 \u043e\u0434\u0438\u043d \u0440\u0430\u0437 " +
+                        "\u0438 \u0437\u0430\u043f\u043e\u043c\u043d\u044e \u043d\u0430\u0432\u0441\u0435\u0433\u0434\u0430 \uD83E\uDDE0\n\n" +
+                        "\u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439 \u043f\u0440\u044f\u043c\u043e \u0441\u0435\u0439\u0447\u0430\u0441 \u2014 " +
+                        "\u043d\u0430\u0436\u043c\u0438 *\uD83D\uDCB8 \u0420\u0430\u0441\u0445\u043e\u0434* \u0438 \u0432\u0432\u0435\u0434\u0438 \u043b\u044e\u0431\u043e\u0439 \u0440\u0430\u0441\u0445\u043e\u0434 \uD83D\uDC47",
                 KeyboardFactory.onboardingTryExpense());
     }
 
-    // ================================================================
-    // Step 3 — suggest setting first goal
-    // ================================================================
-
-    public void sendSuggestGoal(long chatId) {
+    public void sendSuggestGoal(long chatId, MonetkaBot bot) {
         bot.sendMessage(chatId,
-                "🎯 *Поставь первую цель*\n\n" +
-                        "Хочешь контролировать расходы?\n" +
-                        "Поставь себе бюджет на категорию.\n\n" +
-                        "Например: *не тратить больше 15,000 сом\n" +
-                        "в месяц на еду.*\n\n" +
-                        "Когда будешь близко — тихо напомню 💡\n" +
-                        "Никакого спама — только когда нужно знать.",
+                "\uD83C\uDFAF *\u041f\u043e\u0441\u0442\u0430\u0432\u044c \u043f\u0435\u0440\u0432\u0443\u044e \u0446\u0435\u043b\u044c*\n\n" +
+                        "\u0425\u043e\u0447\u0435\u0448\u044c \u043a\u043e\u043d\u0442\u0440\u043e\u043b\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0440\u0430\u0441\u0445\u043e\u0434\u044b?\n" +
+                        "\u041f\u043e\u0441\u0442\u0430\u0432\u044c \u0441\u0435\u0431\u0435 \u0431\u044e\u0434\u0436\u0435\u0442 \u043d\u0430 \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044e.\n\n" +
+                        "\u041d\u0430\u043f\u0440\u0438\u043c\u0435\u0440: *\u043d\u0435 \u0442\u0440\u0430\u0442\u0438\u0442\u044c \u0431\u043e\u043b\u044c\u0448\u0435 15,000 \u0441\u043e\u043c\n" +
+                        "\u0432 \u043c\u0435\u0441\u044f\u0446 \u043d\u0430 \u0435\u0434\u0443.*\n\n" +
+                        "\u041a\u043e\u0433\u0434\u0430 \u0431\u0443\u0434\u0435\u0448\u044c \u0431\u043b\u0438\u0437\u043a\u043e \u2014 \u0442\u0438\u0445\u043e \u043d\u0430\u043f\u043e\u043c\u043d\u044e \uD83D\uDCA1\n" +
+                        "\u041d\u0438\u043a\u0430\u043a\u043e\u0433\u043e \u0441\u043f\u0430\u043c\u0430 \u2014 \u0442\u043e\u043b\u044c\u043a\u043e \u043a\u043e\u0433\u0434\u0430 \u043d\u0443\u0436\u043d\u043e \u0437\u043d\u0430\u0442\u044c.",
                 KeyboardFactory.onboardingGoalChoice());
     }
 
-    // ================================================================
-    // Step 4 — finish onboarding
-    // ================================================================
-
-    public void sendFinish(long chatId) {
+    public void sendFinish(long chatId, MonetkaBot bot) {
         bot.sendMessage(chatId,
-                "✅ *Всё готово! Поехали! 🚀*\n\n" +
-                        "Что умеет Monetka:\n\n" +
-                        "💸 *Расход* — записать трату\n" +
-                        "💰 *Доход* — записать поступление\n" +
-                        "📊 *Обзор* — куда ушли деньги\n" +
-                        "🎯 *Цели* — бюджет по категориям\n\n" +
-                        "Каждый день в 22:00 пришлю итоги дня.\n" +
-                        "Каждый понедельник — сводку за неделю.\n\n" +
-                        "💡 _Чем чаще пользуешься, тем умнее бот!_",
+                "\u2705 *\u0412\u0441\u0451 \u0433\u043e\u0442\u043e\u0432\u043e! \u041f\u043e\u0435\u0445\u0430\u043b\u0438! \uD83D\uDE80*\n\n" +
+                        "\u0427\u0442\u043e \u0443\u043c\u0435\u0435\u0442 Monetka:\n\n" +
+                        "\uD83D\uDCB8 *\u0420\u0430\u0441\u0445\u043e\u0434* \u2014 \u0437\u0430\u043f\u0438\u0441\u0430\u0442\u044c \u0442\u0440\u0430\u0442\u0443\n" +
+                        "\uD83D\uDCB0 *\u0414\u043e\u0445\u043e\u0434* \u2014 \u0437\u0430\u043f\u0438\u0441\u0430\u0442\u044c \u043f\u043e\u0441\u0442\u0443\u043f\u043b\u0435\u043d\u0438\u0435\n" +
+                        "\uD83D\uDCCA *\u041e\u0431\u0437\u043e\u0440* \u2014 \u043a\u0443\u0434\u0430 \u0443\u0448\u043b\u0438 \u0434\u0435\u043d\u044c\u0433\u0438\n" +
+                        "\uD83C\uDFAF *\u0426\u0435\u043b\u0438* \u2014 \u0431\u044e\u0434\u0436\u0435\u0442 \u043f\u043e \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044f\u043c\n\n" +
+                        "\u041a\u0430\u0436\u0434\u044b\u0439 \u0434\u0435\u043d\u044c \u0432 22:00 \u043f\u0440\u0438\u0448\u043b\u044e \u0438\u0442\u043e\u0433\u0438 \u0434\u043d\u044f.\n" +
+                        "\u041a\u0430\u0436\u0434\u044b\u0439 \u043f\u043e\u043d\u0435\u0434\u0435\u043b\u044c\u043d\u0438\u043a \u2014 \u0441\u0432\u043e\u0434\u043a\u0443 \u0437\u0430 \u043d\u0435\u0434\u0435\u043b\u044e.\n\n" +
+                        "\uD83D\uDCA1 _\u0427\u0435\u043c \u0447\u0430\u0449\u0435 \u043f\u043e\u043b\u044c\u0437\u0443\u0435\u0448\u044c\u0441\u044f, \u0442\u0435\u043c \u0443\u043c\u043d\u0435\u0435 \u0431\u043e\u0442!_",
                 KeyboardFactory.mainMenu());
     }
 
-    // ================================================================
-    // Called when user skips onboarding entirely
-    // ================================================================
-
-    public void sendSkip(long chatId) {
+    public void sendSkip(long chatId, MonetkaBot bot) {
         bot.sendMessage(chatId,
-                "Окей, разберёшься сам 😄\n\n" +
-                        "Если что — /help покажет всё нужное.\n" +
-                        "Кнопки внизу — твой главный инструмент 👇",
+                "\u041e\u043a\u0435\u0439, \u0440\u0430\u0437\u0431\u0435\u0440\u0451\u0448\u044c\u0441\u044f \u0441\u0430\u043c \uD83D\uDE04\n\n" +
+                        "\u0415\u0441\u043b\u0438 \u0447\u0442\u043e \u2014 /help \u043f\u043e\u043a\u0430\u0436\u0435\u0442 \u0432\u0441\u0451 \u043d\u0443\u0436\u043d\u043e\u0435.\n" +
+                        "\u041a\u043d\u043e\u043f\u043a\u0438 \u0432\u043d\u0438\u0437\u0443 \u2014 \u0442\u0432\u043e\u0439 \u0433\u043b\u0430\u0432\u043d\u044b\u0439 \u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442 \uD83D\uDC47",
                 KeyboardFactory.mainMenu());
     }
 }

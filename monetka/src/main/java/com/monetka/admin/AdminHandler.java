@@ -286,7 +286,7 @@ public class AdminHandler {
             User u = result.get();
             bot.sendMarkdown(chatId, "✅ Пользователь *" + u.getDisplayName() + "* одобрен.");
             // Start onboarding flow
-            onboardingService.sendWelcome(u, targetId);
+            onboardingService.sendWelcome(u, targetId, bot);
         } else {
             bot.sendText(chatId, "Пользователь не найден.");
         }

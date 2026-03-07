@@ -164,16 +164,15 @@ public class CallbackHandler {
 
     private void handleOnboarding(String data, long chatId, User user, MonetkaBot bot) {
         switch (data) {
-            case "onb:step2"  -> onboardingService.sendHowToRecord(chatId);
-            case "onb:step3"  -> onboardingService.sendSuggestGoal(chatId);
+            case "onb:step2"  -> onboardingService.sendHowToRecord(chatId, bot);
+            case "onb:step3"  -> onboardingService.sendSuggestGoal(chatId, bot);
             case "onb:goals"  -> {
                 overviewHandler.showGoals(user, chatId, bot);
-                // After showing goals, send finish message
-                onboardingService.sendFinish(chatId);
+                onboardingService.sendFinish(chatId, bot);
             }
-            case "onb:finish" -> onboardingService.sendFinish(chatId);
-            case "onb:skip"   -> onboardingService.sendSkip(chatId);
-            default           -> onboardingService.sendFinish(chatId);
+            case "onb:finish" -> onboardingService.sendFinish(chatId, bot);
+            case "onb:skip"   -> onboardingService.sendSkip(chatId, bot);
+            default           -> onboardingService.sendFinish(chatId, bot);
         }
     }
 
