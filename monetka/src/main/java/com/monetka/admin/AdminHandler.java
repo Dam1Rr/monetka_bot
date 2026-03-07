@@ -228,20 +228,13 @@ public class AdminHandler {
         sb.append("👥 *Активные пользователи: ").append(users.size()).append("*\n\n");
         for (int i = 0; i < users.size(); i++) {
             User u = users.get(i);
-            sb.append("*").append(i + 1).append(".* ");
-            sb.append("*").append(escapeMarkdown(u.getDisplayName())).append("*\n");
+            sb.append(i + 1).append(". *").append(escapeMarkdown(u.getDisplayName())).append("*");
             if (u.getUsername() != null && !u.getUsername().isBlank()) {
-                sb.append("   🔗 @").append(u.getUsername()).append("\n");
+                sb.append(" @").append(u.getUsername());
             }
-            sb.append("   🆔 `").append(u.getTelegramId()).append("`\n\n");
+            sb.append(" `").append(u.getTelegramId()).append("`\n");
         }
-        bot.sendMarkdown(chatId, sb.toString());
-
-        // Individual cards with block button
-        for (User u : users) {
-            String card = buildUserCard(u);
-            bot.sendMessage(chatId, card, AdminKeyboardFactory.activeUserActions(u.getTelegramId()));
-        }
+        bot.sendMessage(chatId, sb.toString(), AdminKeyboardFactory.backToMenu());
     }
 
     // ================================================================

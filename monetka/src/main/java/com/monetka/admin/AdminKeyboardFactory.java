@@ -29,7 +29,7 @@ public final class AdminKeyboardFactory {
                 .keyboardRow(row(btn("📈 Активность",        "adm:activity")))
                 .keyboardRow(row(btn(modeLabel,              "adm:toggle_reg")))
                 .keyboardRow(row(btn("📁 Выгрузить список", "adm:export")))
-                .keyboardRow(row(btn("🧹 Очистить данные",  "adm:wipe_1")))
+                .keyboardRow(row(btn("☢️ Опасная зона", "adm:wipe_1")))
                 .build();
     }
 

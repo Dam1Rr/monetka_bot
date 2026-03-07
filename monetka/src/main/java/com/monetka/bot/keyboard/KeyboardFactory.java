@@ -76,7 +76,6 @@ public final class KeyboardFactory {
         }
         if (!row.isEmpty()) rows.add(new ArrayList<>(row));
 
-        rows.add(List.of(btn("🎯 Настроить цели", "overview:goals")));
         return InlineKeyboardMarkup.builder().keyboard(rows).build();
     }
 
@@ -98,7 +97,7 @@ public final class KeyboardFactory {
         } else {
             rows.add(List.of(btn("🎯 Поставить цель", "overview:set_goal:" + categoryId)));
         }
-        rows.add(List.of(btn("← Обзор", "overview:main")));
+        rows.add(List.of(btn("← Назад", "overview:main")));
         return InlineKeyboardMarkup.builder().keyboard(rows).build();
     }
 
@@ -122,7 +121,7 @@ public final class KeyboardFactory {
         if (categoryId != null)
             rows.add(List.of(btn("← Назад", "overview:cat:" + categoryId)));
         else
-            rows.add(List.of(btn("← Обзор", "overview:main")));
+            rows.add(List.of(btn("← Назад", "overview:main")));
 
         return InlineKeyboardMarkup.builder().keyboard(rows).build();
     }
@@ -138,7 +137,7 @@ public final class KeyboardFactory {
         // Existing goals — edit / delete
         for (BudgetGoal g : existing) {
             rows.add(List.of(
-                    btn("✏️ " + g.getCategory().getName(), "overview:set_goal:" + g.getCategory().getId()),
+                    btn("✏️ " + (g.getCategory().getEmoji() != null ? g.getCategory().getEmoji() + " " : "") + g.getCategory().getName(), "overview:set_goal:" + g.getCategory().getId()),
                     btn("🗑", "overview:del_goal:" + g.getCategory().getId())
             ));
         }
@@ -151,7 +150,8 @@ public final class KeyboardFactory {
         for (Category cat : allCats) {
             if (!existingIds.contains(cat.getId())) {
                 String label = (cat.getEmoji() != null ? cat.getEmoji() + " " : "") + cat.getName();
-                addRow.add(btn("+ " + cat.getName(), "overview:set_goal:" + cat.getId()));
+                String catLabel = (cat.getEmoji() != null ? cat.getEmoji() + " " : "") + cat.getName();
+                addRow.add(btn("+ " + catLabel, "overview:set_goal:" + cat.getId()));
                 if (addRow.size() == 2) {
                     rows.add(new ArrayList<>(addRow));
                     addRow.clear();
@@ -160,7 +160,7 @@ public final class KeyboardFactory {
         }
         if (!addRow.isEmpty()) rows.add(new ArrayList<>(addRow));
 
-        rows.add(List.of(btn("← Обзор", "overview:main")));
+        rows.add(List.of(btn("← Назад", "overview:main")));
         return InlineKeyboardMarkup.builder().keyboard(rows).build();
     }
 
@@ -172,7 +172,7 @@ public final class KeyboardFactory {
         return InlineKeyboardMarkup.builder()
                 .keyboardRow(List.of(
                         btn("← Назад", "overview:cat:" + categoryId),
-                        btn("← Обзор", "overview:main")
+                        btn("← Назад", "overview:main")
                 ))
                 .build();
     }

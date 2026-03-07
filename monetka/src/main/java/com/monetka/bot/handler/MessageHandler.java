@@ -108,11 +108,20 @@ public class MessageHandler {
             case "💰 Доход"  -> startIncome(chatId, telegramId, bot);
             case "📊 Обзор"  -> overviewHandler.showMain(user, chatId, bot);
             case "🎯 Цели"   -> overviewHandler.showGoals(user, chatId, bot);
-            default -> bot.sendMessage(chatId,
-                    pick("Хм, не понял 🤔 Используй кнопки или команды: /balance /stats /help",
-                            "Что-то не то написал, используй кнопки 👇",
-                            "Не знаю такой команды 😅 Попробуй /help"),
-                    KeyboardFactory.mainMenu());
+            default -> {
+                // Если во время онбординга пользователь пишет расход — обрабатываем сразу
+                ParseResult tryParse = parse(text);
+                if (tryParse != null) {
+                    stateService.setState(telegramId, UserState.WAITING_EXPENSE);
+                    handleExpenseInput(user, text, chatId, telegramId, bot);
+                } else {
+                    bot.sendMessage(chatId,
+                            pick("Хм, не понял 🤔 Используй кнопки или команды: /balance /stats /help",
+                                    "Что-то не то написал, используй кнопки 👇",
+                                    "Не знаю такой команды 😅 Попробуй /help"),
+                            KeyboardFactory.mainMenu());
+                }
+            }
         }
     }
 
