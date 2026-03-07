@@ -145,50 +145,50 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     /** Global sum of all expenses — admin statistics */
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.type = 'EXPENSE'")
     BigDecimal sumAllExpenses();
-}
 
-// ================================================================
-// Activity monitoring queries
-// ================================================================
+    // ================================================================
+    // Activity monitoring queries
+    // ================================================================
 
-/** Count distinct users who had transactions in a period */
-@Query("""
+    /** Count distinct users who had transactions in a period */
+    @Query("""
         SELECT COUNT(DISTINCT t.user.id)
         FROM Transaction t
         WHERE t.createdAt BETWEEN :from AND :to
     """)
-long countActiveUsersInPeriod(
-        @Param("from") LocalDateTime from,
-        @Param("to")   LocalDateTime to);
+    long countActiveUsersInPeriod(
+            @Param("from") LocalDateTime from,
+            @Param("to")   LocalDateTime to);
 
-/** Count total transactions in a period */
-@Query("""
+    /** Count total transactions in a period */
+    @Query("""
         SELECT COUNT(t)
         FROM Transaction t
         WHERE t.createdAt BETWEEN :from AND :to
     """)
-long countTransactionsInPeriod(
-        @Param("from") LocalDateTime from,
-        @Param("to")   LocalDateTime to);
+    long countTransactionsInPeriod(
+            @Param("from") LocalDateTime from,
+            @Param("to")   LocalDateTime to);
 
-/** Top N active users by transaction count in a period */
-@Query("""
+    /** Top N active users by transaction count in a period */
+    @Query("""
         SELECT t.user, COUNT(t) as cnt
         FROM Transaction t
         WHERE t.createdAt BETWEEN :from AND :to
         GROUP BY t.user
         ORDER BY cnt DESC
     """)
-List<Object[]> topUsersByActivityInPeriod(
-        @Param("from") LocalDateTime from,
-        @Param("to")   LocalDateTime to);
+    List<Object[]> topUsersByActivityInPeriod(
+            @Param("from") LocalDateTime from,
+            @Param("to")   LocalDateTime to);
 
-/** Count transactions per user in a period — for retention table */
-@Query("""
+    /** Count transactions per user — for retention table */
+    @Query("""
         SELECT t.user, COUNT(t) as cnt,
                MAX(t.createdAt) as lastActivity
         FROM Transaction t
         GROUP BY t.user
         ORDER BY lastActivity DESC
     """)
-List<Object[]> userActivitySummary();
+    List<Object[]> userActivitySummary();
+}
