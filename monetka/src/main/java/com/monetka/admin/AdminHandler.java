@@ -2,6 +2,7 @@ package com.monetka.admin;
 
 import com.monetka.bot.MonetkaBot;
 import com.monetka.service.BotSettingsService;
+import com.monetka.admin.ActivityStatsService;
 import com.monetka.config.BotProperties;
 import com.monetka.model.User;
 import com.monetka.service.OnboardingService;
@@ -37,17 +38,20 @@ public class AdminHandler {
     private final UserExportService exportService;
 
     private final OnboardingService onboardingService;
-    private final BotSettingsService botSettingsService;
+    private final BotSettingsService   botSettingsService;
+    private final ActivityStatsService  activityStatsService;
 
     public AdminHandler(AdminService adminService, BotProperties botProperties,
                         UserExportService exportService,
                         OnboardingService onboardingService,
-                        BotSettingsService botSettingsService) {
+                        BotSettingsService botSettingsService,
+                        ActivityStatsService activityStatsService) {
         this.adminService      = adminService;
         this.botProperties     = botProperties;
         this.exportService     = exportService;
         this.onboardingService  = onboardingService;
-        this.botSettingsService = botSettingsService;
+        this.botSettingsService  = botSettingsService;
+        this.activityStatsService = activityStatsService;
     }
 
     // ================================================================
@@ -99,7 +103,47 @@ public class AdminHandler {
         else if (action.startsWith("block:"))        blockUser(action, chatId, bot);
         else if (action.startsWith("unblock:"))      unblockUser(action, chatId, bot);
         else if (action.equals("toggle_reg"))         toggleRegistration(chatId, bot);
+        else if (action.equals("activity"))              showActivityStats(chatId, bot);
         else log.warn("Unknown admin callback: {}", data);
+    }
+
+    // ================================================================
+    // Activity stats — live snapshot
+    // ================================================================
+
+    private void showActivityStats(long chatId, MonetkaBot bot) {
+        ActivityStatsService.ActivitySnapshot s = activityStatsService.getSnapshot();
+
+        long retPct = s.totalUsers() > 0 ? s.activeWeek() * 100 / s.totalUsers() : 0;
+        String retIcon = retPct >= 50 ? "\u2705" : "\u26A0\uFE0F";
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("\uD83D\uDCCA *\u0410\u043a\u0442\u0438\u0432\u043d\u043e\u0441\u0442\u044c \u2014 \u0441\u0435\u0439\u0447\u0430\u0441*\n\n");
+
+        sb.append("\uD83D\uDC65 \u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0435\u0439: *").append(s.totalUsers()).append("*");
+        if (s.pendingUsers() > 0) sb.append(" (+").append(s.pendingUsers()).append(" \u0437\u0430\u044f\u0432\u043e\u043a)");
+        sb.append("\n");
+
+        sb.append("\u2705 \u0410\u043a\u0442\u0438\u0432\u043d\u044b \u0441\u0435\u0433\u043e\u0434\u043d\u044f: *").append(s.activeToday()).append("*\n");
+        sb.append("\uD83D\uDCC5 \u0410\u043a\u0442\u0438\u0432\u043d\u044b \u0437\u0430 7 \u0434\u043d\u0435\u0439: *").append(s.activeWeek()).append("*\n");
+        sb.append("\uD83D\uDE34 \u041d\u0435\u0430\u043a\u0442\u0438\u0432\u043d\u044b 3+ \u0434\u043d\u044f: *").append(s.inactive3days()).append("*\n\n");
+
+        sb.append("\uD83D\uDCB8 \u0422\u0440\u0430\u043d\u0437\u0430\u043a\u0446\u0438\u0439 \u0441\u0435\u0433\u043e\u0434\u043d\u044f: *").append(s.txToday()).append("*\n");
+        sb.append("\uD83D\uDCC8 \u0422\u0440\u0430\u043d\u0437\u0430\u043a\u0446\u0438\u0439 \u0437\u0430 7 \u0434\u043d\u0435\u0439: *").append(s.txWeek()).append("*\n\n");
+
+        sb.append(retIcon).append(" *Retention 7 \u0434\u043d\u0435\u0439: ").append(retPct).append("%*\n\n");
+
+        if (!s.top5().isEmpty()) {
+            sb.append("\uD83D\uDD25 *\u0422\u043e\u043f \u0437\u0430 \u043d\u0435\u0434\u0435\u043b\u044e:*\n");
+            for (int i = 0; i < s.top5().size(); i++) {
+                sb.append(i + 1).append(". ").append(s.top5().get(i).name())
+                        .append(" \u2014 ").append(s.top5().get(i).txCount()).append(" \u0437\u0430\u043f.\n");
+            }
+        }
+
+        bot.sendMarkdown(chatId, sb.toString());
+        bot.sendMessage(chatId, "\uD83D\uDCCB \u041F\u043E\u043B\u043D\u0430\u044F \u0442\u0430\u0431\u043B\u0438\u0446\u0430 \u0430\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442\u0438 \u2014 \u0432 \u0432\u044B\u0433\u0440\u0443\u0437\u043A\u0435 Excel \u0432\u043A\u043B\u0430\u0434\u043A\u0435 \u00AB\u0410\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442\u044C\u00BB",
+                AdminKeyboardFactory.backToMenu());
     }
 
     // ================================================================
