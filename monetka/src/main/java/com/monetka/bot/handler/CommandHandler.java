@@ -35,12 +35,14 @@ public class CommandHandler {
     private final AdminHandler        adminHandler;
     private final PaydayService       paydayService;
     private final BotSettingsService  botSettingsService;
+    private final OnboardingService   onboardingService;
 
     public CommandHandler(UserService userService, UserStateService stateService,
                           ReportService reportService, SubscriptionService subscriptionService,
                           BotProperties botProperties, AdminHandler adminHandler,
                           PaydayService paydayService,
-                          BotSettingsService botSettingsService) {
+                          BotSettingsService botSettingsService,
+                          OnboardingService onboardingService) {
         this.userService         = userService;
         this.stateService        = stateService;
         this.reportService       = reportService;
@@ -49,6 +51,7 @@ public class CommandHandler {
         this.adminHandler        = adminHandler;
         this.paydayService       = paydayService;
         this.botSettingsService  = botSettingsService;
+        this.onboardingService   = onboardingService;
     }
 
     public void handle(Message message, MonetkaBot bot) {
