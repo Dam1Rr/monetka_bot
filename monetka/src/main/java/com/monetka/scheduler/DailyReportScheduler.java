@@ -32,8 +32,8 @@ public class DailyReportScheduler {
         this.bot           = bot;
     }
 
-    // 22:00 Asia/Bishkek
-    @Scheduled(cron = "0 0 22 * * *", zone = "Asia/Bishkek")
+    // 23:55 Asia/Bishkek
+    @Scheduled(cron = "0 55 23 * * *", zone = "Asia/Bishkek")
     public void sendDailyReports() {
         List<User> activeUsers = userService.getActiveUsers();
         log.info("Sending daily reports to {} users", activeUsers.size());
