@@ -8,6 +8,7 @@ import com.monetka.model.enums.UserState;
 import com.monetka.model.enums.UserStatus;
 import com.monetka.service.*;
 import com.monetka.service.BudgetService;
+import com.monetka.service.PaydayService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -40,13 +41,15 @@ public class MessageHandler {
 
     private final OverviewHandler  overviewHandler;
     private final BudgetService    budgetService;
+    private final PaydayService    paydayService;
 
     public MessageHandler(UserService userService, UserStateService stateService,
                           TransactionService transactionService, SubscriptionService subscriptionService,
                           ReportService reportService, FinancialTipsService tipsService,
                           CategoryDetectionService detectionService,
                           OverviewHandler overviewHandler,
-                          BudgetService budgetService) {
+                          BudgetService budgetService,
+                          PaydayService paydayService) {
         this.userService         = userService;
         this.stateService        = stateService;
         this.transactionService  = transactionService;
@@ -56,6 +59,7 @@ public class MessageHandler {
         this.detectionService    = detectionService;
         this.overviewHandler     = overviewHandler;
         this.budgetService       = budgetService;
+        this.paydayService       = paydayService;
     }
 
     public void handle(Message message, MonetkaBot bot) {
@@ -167,12 +171,15 @@ public class MessageHandler {
         String[] reactions = {"✅", "💾", "📌"};
         String reaction = reactions[RND.nextInt(reactions.length)];
 
+        // Pace hint — one line showing cycle status
+        String paceHint = paydayService.getPaceHint(user).map(h -> "\n" + h).orElse("");
+
         bot.sendMessage(chatId,
                 reaction + " *Записал!*\n\n" +
                         "📝 " + p.description + "\n" +
                         "💸 −" + fmt(p.amount) + "\n" +
                         "🏷 " + cat + confNote + learnedNote + "\n" +
-                        "💳 Баланс: *" + fmt(user.getBalance()) + "*",
+                        "💳 Баланс: *" + fmt(user.getBalance()) + "*" + paceHint,
                 KeyboardFactory.mainMenu());
 
         // Budget goal alert — send after main confirmation if threshold crossed
@@ -205,13 +212,19 @@ public class MessageHandler {
             return;
         }
         transactionService.addIncome(user, p.amount, p.description);
+        paydayService.onIncome(user, p.amount);
         stateService.reset(telegramId);
+
+        // Show updated daily budget
+        String cycleHint = paydayService.getCycleStatus(user)
+                .map(s -> "\n\n📅 _Бюджет: " + String.format("%,.0f сом/день", s.dailyBudget) + "_")
+                .orElse("");
 
         bot.sendMessage(chatId,
                 pick("🎉 *Доход записан!*", "💰 *Зафиксировал!*", "✅ *Добавлено!*") + "\n\n" +
                         "📝 " + p.description + "\n" +
                         "💰 +" + fmt(p.amount) + "\n" +
-                        "💳 Баланс: *" + fmt(user.getBalance()) + "*",
+                        "💳 Баланс: *" + fmt(user.getBalance()) + "*" + cycleHint,
                 KeyboardFactory.mainMenu());
     }
 

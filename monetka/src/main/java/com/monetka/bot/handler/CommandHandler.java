@@ -8,6 +8,7 @@ import com.monetka.model.Subscription;
 import com.monetka.model.User;
 import com.monetka.model.enums.UserStatus;
 import com.monetka.service.*;
+import com.monetka.service.PaydayService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -31,16 +32,19 @@ public class CommandHandler {
     private final SubscriptionService subscriptionService;
     private final BotProperties       botProperties;
     private final AdminHandler        adminHandler;
+    private final PaydayService       paydayService;
 
     public CommandHandler(UserService userService, UserStateService stateService,
                           ReportService reportService, SubscriptionService subscriptionService,
-                          BotProperties botProperties, AdminHandler adminHandler) {
+                          BotProperties botProperties, AdminHandler adminHandler,
+                          PaydayService paydayService) {
         this.userService         = userService;
         this.stateService        = stateService;
         this.reportService       = reportService;
         this.subscriptionService = subscriptionService;
         this.botProperties       = botProperties;
         this.adminHandler        = adminHandler;
+        this.paydayService       = paydayService;
     }
 
     public void handle(Message message, MonetkaBot bot) {
@@ -54,6 +58,7 @@ public class CommandHandler {
             case "/cancel"        -> handleCancel(chatId, telegramId, bot);
             case "/balance"       -> handleBalance(chatId, telegramId, bot);
             case "/stats"         -> handleStats(chatId, telegramId, bot);
+            case "/day"           -> handleDay(chatId, telegramId, bot);
             case "/subscriptions" -> handleSubscriptions(chatId, telegramId, bot);
             case "/admin"         -> adminHandler.handleCommand(message, bot);
             case "/pending"       -> handlePending(chatId, telegramId, bot);
@@ -236,6 +241,41 @@ public class CommandHandler {
         for (Long adminId : botProperties.getAdminIds()) {
             bot.sendMessage(adminId, msg, KeyboardFactory.pendingUserButtons(user.getTelegramId()));
         }
+    }
+
+
+    // ================================================================
+    // /day — payday cycle status
+    // ================================================================
+
+    private void handleDay(long chatId, long telegramId, MonetkaBot bot) {
+        if (!checkApproved(chatId, telegramId, bot)) return;
+        userService.findByTelegramId(telegramId).ifPresent(user -> {
+            paydayService.getCycleStatus(user).ifPresentOrElse(s -> {
+                String trend;
+                int cmp = s.actualDaily.compareTo(s.dailyBudget);
+                if (cmp <= 0) trend = "\u2705 \u0418\u0434\u0451\u0448\u044c \u0432 \u043f\u043b\u0430\u043d\u0435 \u2014 \u0432\u0441\u0451 \u043e\u043a!";
+                else {
+                    java.math.BigDecimal over = s.actualDaily.subtract(s.dailyBudget);
+                    trend = "\u26A0\uFE0F \u0422\u0440\u0430\u0442\u0438\u0448\u044c \u043d\u0430 *" +
+                            String.format("%,.0f \u0441\u043e\u043c", over) +
+                            "* \u0432 \u0434\u0435\u043d\u044c \u0431\u043e\u043b\u044c\u0448\u0435 \u043f\u043b\u0430\u043d\u0430";
+                }
+                bot.sendMarkdown(chatId,
+                        "\uD83D\uDCC5 *\u0426\u0438\u043a\u043b \u0441 " +
+                                s.startDate.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM", new java.util.Locale("ru"))) +
+                                "* \u2014 \u0434\u0435\u043d\u044c " + s.daysPassed + "\n\n" +
+                                "\uD83D\uDCB0 \u0411\u044e\u0434\u0436\u0435\u0442:   *" + String.format("%,.0f \u0441\u043e\u043c", s.totalIncome) + "*\n" +
+                                "\uD83D\uDCB8 \u041F\u043E\u0442\u0440\u0430\u0447\u0435\u043D\u043E: *" + String.format("%,.0f \u0441\u043e\u043c", s.spent) + "*\n" +
+                                "\uD83D\uDCB5 \u041E\u0441\u0442\u0430\u043B\u043E\u0441\u044C:  *" + String.format("%,.0f \u0441\u043e\u043c", s.remaining) + "*\n\n" +
+                                "\uD83D\uDCCA \u041F\u043B\u0430\u043D/\u0434\u0435\u043D\u044C: *" + String.format("%,.0f \u0441\u043e\u043c", s.dailyBudget) + "*\n" +
+                                "\uD83D\uDCC8 \u0424\u0430\u043A\u0442/\u0434\u0435\u043D\u044C: *" + String.format("%,.0f \u0441\u043e\u043c", s.actualDaily) + "*\n\n" +
+                                trend);
+            }, () -> bot.sendMarkdown(chatId,
+                    "\uD83D\uDCC5 *\u0414\u0435\u043D\u044C \u0437\u0430\u0440\u043F\u043B\u0430\u0442\u044B*\n\n" +
+                            "_\u0426\u0438\u043A\u043B \u0435\u0449\u0451 \u043D\u0435 \u0437\u0430\u043F\u0443\u0449\u0435\u043D._\n\n" +
+                            "\u0417\u0430\u043F\u0438\u0448\u0438 \u043B\u044E\u0431\u043E\u0439 \u0434\u043E\u0445\u043E\u0434 \u2014 \u0431\u043E\u0442 \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u043D\u0430\u0447\u043D\u0451\u0442 \u0441\u0447\u0438\u0442\u0430\u0442\u044C \uD83D\uDCA1"));
+        });
     }
 
     // ================================================================
