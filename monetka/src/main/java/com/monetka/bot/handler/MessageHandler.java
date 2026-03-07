@@ -9,6 +9,7 @@ import com.monetka.model.enums.UserStatus;
 import com.monetka.service.*;
 import com.monetka.service.BudgetService;
 import com.monetka.service.PaydayService;
+import com.monetka.insight.InsightEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -42,6 +43,7 @@ public class MessageHandler {
     private final OverviewHandler  overviewHandler;
     private final BudgetService    budgetService;
     private final PaydayService    paydayService;
+    private final InsightEngine    insightEngine;
 
     public MessageHandler(UserService userService, UserStateService stateService,
                           TransactionService transactionService, SubscriptionService subscriptionService,
@@ -49,7 +51,8 @@ public class MessageHandler {
                           CategoryDetectionService detectionService,
                           OverviewHandler overviewHandler,
                           BudgetService budgetService,
-                          PaydayService paydayService) {
+                          PaydayService paydayService,
+                          InsightEngine insightEngine) {
         this.userService         = userService;
         this.stateService        = stateService;
         this.transactionService  = transactionService;
@@ -60,6 +63,7 @@ public class MessageHandler {
         this.overviewHandler     = overviewHandler;
         this.budgetService       = budgetService;
         this.paydayService       = paydayService;
+        this.insightEngine       = insightEngine;
     }
 
     public void handle(Message message, MonetkaBot bot) {
@@ -196,6 +200,9 @@ public class MessageHandler {
             budgetService.checkAfterExpense(user, tx.getCategory())
                     .ifPresent(alert -> bot.sendMarkdown(chatId, alert));
         }
+
+        // Insight engine — check triggers
+        insightEngine.onTransaction(user, tx, bot);
     }
 
     // ================================================================

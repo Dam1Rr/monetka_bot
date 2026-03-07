@@ -1,6 +1,7 @@
 package com.monetka.scheduler;
 
 import com.monetka.bot.MonetkaBot;
+import com.monetka.insight.MonthlyPortrait;
 import com.monetka.bot.keyboard.KeyboardFactory;
 import com.monetka.model.BudgetGoal;
 import com.monetka.model.User;
@@ -34,15 +35,18 @@ public class MonthlyReportScheduler {
     private final UserService       userService;
     private final StatisticsService statisticsService;
     private final BudgetService     budgetService;
+    private final MonthlyPortrait   monthlyPortrait;
     private final MonetkaBot        bot;
 
     public MonthlyReportScheduler(UserService userService,
                                   StatisticsService statisticsService,
                                   BudgetService budgetService,
+                                  MonthlyPortrait monthlyPortrait,
                                   MonetkaBot bot) {
         this.userService       = userService;
         this.statisticsService = statisticsService;
         this.budgetService     = budgetService;
+        this.monthlyPortrait   = monthlyPortrait;
         this.bot               = bot;
     }
 
@@ -154,6 +158,13 @@ public class MonthlyReportScheduler {
         sb.append("\nНовый месяц начался с чистого листа 🚀");
 
         bot.sendMessage(user.getTelegramId(), sb.toString(), KeyboardFactory.mainMenu());
+
+        // Психологический портрет — отправляем через 3 секунды после отчёта
+        try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
+        String portrait = monthlyPortrait.build(user);
+        if (portrait != null) {
+            bot.sendMarkdown(user.getTelegramId(), portrait);
+        }
     }
 
     private BigDecimal safe(BigDecimal v) { return v != null ? v : BigDecimal.ZERO; }
