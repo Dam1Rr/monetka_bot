@@ -185,7 +185,8 @@ public class CallbackHandler {
         long targetId = parseId(data);
         if (userService.approveUser(targetId)) {
             bot.sendText(chatId, "✅ Пользователь " + targetId + " одобрен.");
-            bot.sendMessage(targetId, "✅ *Добро пожаловать в Monetka!*\nДоступ подтверждён 🎉", KeyboardFactory.mainMenu());
+            userService.findByTelegramId(targetId).ifPresent(u ->
+                    onboardingService.sendWelcome(u, targetId, bot));
         }
     }
 

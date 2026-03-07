@@ -17,12 +17,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-/**
- * Handles all overview:* callbacks — the main financial dashboard
- * with drill-down: category → subcategory → transaction list.
- *
- * Callback format:  overview:<action>[:<param>]
- */
 @Component
 public class OverviewHandler {
 
@@ -52,23 +46,23 @@ public class OverviewHandler {
     }
 
     // ================================================================
-    // Entry point from CallbackHandler
+    // Entry point
     // ================================================================
 
     @Transactional
     public void handle(String action, User user, long chatId, MonetkaBot bot) {
-        if (action.equals("main"))                         showMain(user, chatId, bot);
-        else if (action.startsWith("cat:"))                showCategory(user, chatId, bot, parseId(action));
-        else if (action.startsWith("subcat:"))             showSubcategory(user, chatId, bot, parseId(action));
-        else if (action.startsWith("days:"))               showDays(user, chatId, bot, parseId(action));
-        else if (action.equals("goals"))                   showGoals(user, chatId, bot);
-        else if (action.startsWith("set_goal:"))           startSetGoal(user, chatId, bot, parseId(action));
-        else if (action.startsWith("del_goal:"))           deleteGoal(user, chatId, bot, parseId(action));
-        else if (action.startsWith("del_tx:"))             confirmDeleteTx(user, chatId, bot, parseId(action));
-        else if (action.startsWith("confirm_del:"))        doDeleteTx(user, chatId, bot, parseId(action));
-        else if (action.startsWith("edit_amount:"))        startEditAmount(user, chatId, bot, parseId(action));
-        else if (action.startsWith("edit_desc:"))          startEditDesc(user, chatId, bot, parseId(action));
-        else if (action.startsWith("view_tx:"))            showTxDetail(user, chatId, bot, parseId(action));
+        if      (action.equals("main"))                showMain(user, chatId, bot);
+        else if (action.startsWith("cat:"))            showCategory(user, chatId, bot, parseId(action));
+        else if (action.startsWith("subcat:"))         showSubcategory(user, chatId, bot, parseId(action));
+        else if (action.startsWith("days:"))           showDays(user, chatId, bot, parseId(action));
+        else if (action.equals("goals"))               showGoals(user, chatId, bot);
+        else if (action.startsWith("set_goal:"))       startSetGoal(user, chatId, bot, parseId(action));
+        else if (action.startsWith("del_goal:"))       deleteGoal(user, chatId, bot, parseId(action));
+        else if (action.startsWith("view_tx:"))        showTxDetail(user, chatId, bot, parseId(action));
+        else if (action.startsWith("del_tx:"))         confirmDeleteTx(user, chatId, bot, parseId(action));
+        else if (action.startsWith("confirm_del:"))    doDeleteTx(user, chatId, bot, parseId(action));
+        else if (action.startsWith("edit_amount:"))    startEditAmount(user, chatId, bot, parseId(action));
+        else if (action.startsWith("edit_desc:"))      startEditDesc(user, chatId, bot, parseId(action));
     }
 
     // ================================================================
@@ -77,7 +71,7 @@ public class OverviewHandler {
 
     @Transactional(readOnly = true)
     public void showMain(User user, long chatId, MonetkaBot bot) {
-        LocalDate now  = LocalDate.now(BISHKEK);
+        LocalDate now   = LocalDate.now(BISHKEK);
         LocalDateTime from = now.withDayOfMonth(1).atStartOfDay();
         LocalDateTime to   = from.plusMonths(1);
 
@@ -85,181 +79,166 @@ public class OverviewHandler {
         BigDecimal expenses = safe(statisticsService.getMonthExpenses(user));
         BigDecimal diff     = income.subtract(expenses);
 
-        // Days passed / remaining
-        int daysPassed   = now.getDayOfMonth();
-        int daysInMonth  = now.lengthOfMonth();
-        int daysLeft     = daysInMonth - daysPassed;
+        int daysPassed  = now.getDayOfMonth();
+        int daysInMonth = now.lengthOfMonth();
+        int daysLeft    = daysInMonth - daysPassed;
 
-        // Forecast
-        BigDecimal forecast = BigDecimal.ZERO;
-        if (daysPassed > 0 && expenses.compareTo(BigDecimal.ZERO) > 0) {
-            forecast = expenses
-                    .multiply(BigDecimal.valueOf(daysInMonth))
-                    .divide(BigDecimal.valueOf(daysPassed), 0, RoundingMode.HALF_UP);
-        }
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("📊 *").append(statisticsService.currentMonthName()).append(" ").append(now.getYear()).append("*\n");
-        sb.append("_Прошло ").append(daysPassed).append(" дней, осталось ").append(daysLeft).append("_\n\n");
-
-        if (income.compareTo(BigDecimal.ZERO) > 0)
-            sb.append("💰 Доходы:   *+").append(fmt(income)).append("*\n");
-        sb.append("💸 Расходы:  *−").append(fmt(expenses)).append("*\n");
-        sb.append(diff.compareTo(BigDecimal.ZERO) >= 0 ? "✅" : "⚠️");
-        sb.append(" Остаток:  *").append(diff.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "").append(fmt(diff)).append("*\n");
-
-        if (forecast.compareTo(BigDecimal.ZERO) > 0) {
-            sb.append("\n📈 *Прогноз на конец месяца:* ~").append(fmt(forecast)).append("\n");
-        }
-
-        // Top categories with goal progress
         List<StatisticsService.CategoryStats> cats =
                 statisticsService.getDetailedExpenses(user, from, to);
         List<BudgetGoal> goals = budgetService.getGoals(user);
         Map<Long, BigDecimal> goalMap = new HashMap<>();
         for (BudgetGoal g : goals) goalMap.put(g.getCategory().getId(), g.getAmount());
 
+        StringBuilder sb = new StringBuilder();
+        sb.append("\uD83D\uDCCA *").append(statisticsService.currentMonthName())
+                .append(" ").append(now.getYear()).append("*\n");
+        sb.append("_\u041f\u0440\u043e\u0448\u043b\u043e ").append(daysPassed)
+                .append(" \u0434\u043d., \u043e\u0441\u0442\u0430\u043b\u043e\u0441\u044c ").append(daysLeft).append("_\n\n");
+
+        if (income.compareTo(BigDecimal.ZERO) > 0)
+            sb.append("\uD83D\uDCB0 \u0414\u043e\u0445\u043e\u0434\u044b:   *+").append(fmt(income)).append("*\n");
+        sb.append("\uD83D\uDCB8 \u0420\u0430\u0441\u0445\u043e\u0434\u044b:  *\u2212").append(fmt(expenses)).append("*\n");
+        String balSign = diff.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "";
+        sb.append(diff.compareTo(BigDecimal.ZERO) >= 0 ? "\u2705" : "\u26A0\uFE0F");
+        sb.append(" \u0411\u0430\u043b\u0430\u043d\u0441:   *").append(balSign).append(fmt(diff)).append("*\n");
+
         if (!cats.isEmpty()) {
-            sb.append("\n*Топ расходов:*\n");
+            sb.append("\n*\u0422\u043e\u043f \u0440\u0430\u0441\u0445\u043e\u0434\u043e\u0432:*\n");
             int show = Math.min(cats.size(), 5);
             for (int i = 0; i < show; i++) {
                 StatisticsService.CategoryStats cat = cats.get(i);
                 sb.append("\n").append(i + 1).append(". ").append(cat.label);
-                sb.append("  *").append(fmt(cat.total)).append("*");
-                sb.append("  _(").append(cat.percent).append("%)_");
-
-                // Find categoryId to check goal
+                sb.append("  *").append(fmt(cat.total)).append("*  (").append(cat.percent).append("%)");
+                // Goal indicator — just icon, no bar
                 categoryRepository.findByName(extractName(cat.label)).ifPresent(c -> {
                     BigDecimal goal = goalMap.get(c.getId());
                     if (goal != null && goal.compareTo(BigDecimal.ZERO) > 0) {
                         int pct = cat.total.multiply(BigDecimal.valueOf(100))
                                 .divide(goal, 0, RoundingMode.HALF_UP).intValue();
-                        sb.append("  ").append(goalBar(pct));
+                        sb.append(pct >= 100 ? "  \uD83D\uDD34" : pct >= 80 ? "  \uD83D\uDFE1" : "  \u2705");
                     }
                 });
-                sb.append("\n");
             }
-            if (cats.size() > 5) {
-                sb.append("_...и ещё ").append(cats.size() - 5).append(" категорий_\n");
-            }
+            if (cats.size() > 5)
+                sb.append("\n_... \u0438 \u0435\u0449\u0451 ").append(cats.size() - 5).append(" \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u0439_");
         } else {
-            sb.append("\n_Расходов пока нет 🌱_\n");
+            sb.append("\n_\u0420\u0430\u0441\u0445\u043e\u0434\u043e\u0432 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442 \uD83C\uDF31_");
         }
 
         bot.sendMessage(chatId, sb.toString(), KeyboardFactory.overviewMain(cats, categoryRepository));
     }
 
     // ================================================================
-    // 2. CATEGORY DRILL-DOWN
+    // 2. CATEGORY
     // ================================================================
 
     @Transactional(readOnly = true)
     public void showCategory(User user, long chatId, MonetkaBot bot, long categoryId) {
         Category cat = categoryRepository.findById(categoryId).orElse(null);
-        if (cat == null) { bot.sendText(chatId, "Категория не найдена."); return; }
+        if (cat == null) { bot.sendText(chatId, "\u041a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044f \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430."); return; }
 
-        LocalDate now  = LocalDate.now(BISHKEK);
+        LocalDate now   = LocalDate.now(BISHKEK);
         LocalDateTime from = now.withDayOfMonth(1).atStartOfDay();
         LocalDateTime to   = from.plusMonths(1);
 
         BigDecimal spent = budgetService.getCategorySpentForPeriod(user, cat, from, to);
+        List<Object[]> subcats = transactionRepository.sumBySubcategoryInCategory(user, categoryId, from, to);
+        List<Transaction> txs = transactionRepository.findExpensesByCategoryAndPeriod(user, categoryId, from, to);
 
         StringBuilder sb = new StringBuilder();
         sb.append(cat.getEmoji() != null ? cat.getEmoji() + " " : "");
-        sb.append("*").append(cat.getName()).append(" — ").append(statisticsService.currentMonthName()).append("*\n");
-        sb.append("━━━━━━━━━━━━━━━━\n");
-        sb.append("Потрачено:  *").append(fmt(spent)).append("*\n");
+        sb.append("*").append(cat.getName()).append(" \u2014 ").append(statisticsService.currentMonthName()).append("*\n\n");
+        sb.append("\u041f\u043e\u0442\u0440\u0430\u0447\u0435\u043d\u043e: *").append(fmt(spent)).append("*\n");
 
-        // Goal progress
+        // Goal — simple text, no bar
         budgetService.getGoal(user, cat).ifPresent(goal -> {
             BigDecimal remaining = goal.getAmount().subtract(spent);
             int pct = spent.compareTo(BigDecimal.ZERO) > 0
                     ? spent.multiply(BigDecimal.valueOf(100))
                     .divide(goal.getAmount(), 0, RoundingMode.HALF_UP).intValue()
                     : 0;
-            sb.append("Цель:       *").append(fmt(goal.getAmount())).append("*\n");
-            sb.append(progressBar(pct)).append("  ").append(pct).append("%\n");
-            if (remaining.compareTo(BigDecimal.ZERO) > 0)
-                sb.append("Осталось:   *").append(fmt(remaining)).append("*\n");
+            sb.append("\u0426\u0435\u043b\u044c: *").append(fmt(goal.getAmount())).append("*");
+            sb.append("  (").append(pct).append("%)");
+            if (pct >= 100)
+                sb.append("  \uD83D\uDD34 \u043f\u0440\u0435\u0432\u044b\u0448\u0435\u043d\u0430 \u043d\u0430 *").append(fmt(remaining.abs())).append("*");
+            else if (pct >= 80)
+                sb.append("  \uD83D\uDFE1 \u043e\u0441\u0442\u0430\u043b\u043e\u0441\u044c *").append(fmt(remaining)).append("*");
             else
-                sb.append("🔴 Превышение: *").append(fmt(remaining.abs())).append("*\n");
+                sb.append("  \u2705 \u043e\u0441\u0442\u0430\u043b\u043e\u0441\u044c *").append(fmt(remaining)).append("*");
+            sb.append("\n");
         });
 
-        // Subcategory breakdown
-        List<Object[]> subcats = transactionRepository.sumBySubcategoryInCategory(user, categoryId, from, to);
+        // Subcategories
         if (!subcats.isEmpty()) {
-            sb.append("\n📂 *По подкатегориям:*\n\n");
+            sb.append("\n\uD83D\uDCC2 *\u041F\u043e \u043f\u043e\u0434\u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044f\u043c:*\n");
             for (Object[] row : subcats) {
-                String  sName  = (String)     row[0];
-                String  sEmoji = (String)     row[1];
+                String sName  = (String) row[0];
+                String sEmoji = (String) row[1];
                 BigDecimal amt = (BigDecimal) row[2];
                 int pct = spent.compareTo(BigDecimal.ZERO) > 0
                         ? amt.multiply(BigDecimal.valueOf(100))
                         .divide(spent, 0, RoundingMode.HALF_UP).intValue()
                         : 0;
-                sb.append(sEmoji != null ? sEmoji + " " : "• ");
-                sb.append(sName).append("  *").append(fmt(amt)).append("*");
-                sb.append("  _(").append(pct).append("%)_\n");
+                sb.append(sEmoji != null ? sEmoji + " " : "\u2022 ");
+                sb.append(sName).append("  *").append(fmt(amt)).append("*  (").append(pct).append("%)\n");
             }
         }
 
-        // Insight
-        List<Transaction> txs = transactionRepository.findExpensesByCategoryAndPeriod(user, categoryId, from, to);
+        // Last transactions
         if (!txs.isEmpty()) {
-            sb.append("\n_Записей: ").append(txs.size()).append("_\n");
-            findTopDescription(txs).ifPresent(top ->
-                    sb.append("_Чаще всего: ").append(top).append("_\n"));
+            sb.append("\n\uD83D\uDCCB *\u041F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0435 \u0437\u0430\u043F\u0438\u0441\u0438:*\n");
+            int show = Math.min(txs.size(), 5);
+            for (int i = 0; i < show; i++) {
+                Transaction tx = txs.get(i);
+                sb.append(tx.getCreatedAt().toLocalDate().format(SHORT))
+                        .append("  ").append(tx.getDescription())
+                        .append("  \u2212").append(fmt(tx.getAmount())).append("\n");
+            }
+            if (txs.size() > 5)
+                sb.append("_... \u0438 \u0435\u0449\u0451 ").append(txs.size() - 5).append(" \u0437\u0430\u043f\u0438\u0441\u0435\u0439_\n");
         }
 
         bot.sendMessage(chatId, sb.toString(),
-                KeyboardFactory.overviewCategory(categoryId, !subcats.isEmpty(), budgetService.getGoal(user, cat).isPresent()));
+                KeyboardFactory.overviewCategory(categoryId, !subcats.isEmpty(),
+                        budgetService.getGoal(user, cat).isPresent()));
     }
 
     // ================================================================
-    // 3. SUBCATEGORY DRILL-DOWN
+    // 3. SUBCATEGORY
     // ================================================================
 
     @Transactional(readOnly = true)
     public void showSubcategory(User user, long chatId, MonetkaBot bot, long subcategoryId) {
         Subcategory sub = subcategoryRepository.findById(subcategoryId).orElse(null);
-        if (sub == null) { bot.sendText(chatId, "Подкатегория не найдена."); return; }
+        if (sub == null) { bot.sendText(chatId, "\u041f\u043e\u0434\u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044f \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430."); return; }
 
-        LocalDate now  = LocalDate.now(BISHKEK);
+        LocalDate now   = LocalDate.now(BISHKEK);
         LocalDateTime from = now.withDayOfMonth(1).atStartOfDay();
         LocalDateTime to   = from.plusMonths(1);
 
         List<Transaction> txs = transactionRepository.findExpensesBySubcategoryAndPeriod(user, subcategoryId, from, to);
-        BigDecimal total = txs.stream().map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal total = txs.stream().map(Transaction::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
 
         StringBuilder sb = new StringBuilder();
         sb.append(sub.getEmoji() != null ? sub.getEmoji() + " " : "");
-        sb.append("*").append(sub.getName()).append(" — ").append(statisticsService.currentMonthName()).append("*\n");
-        sb.append("━━━━━━━━━━━━━━━━\n");
-        sb.append("Всего:  *").append(fmt(total)).append("*\n");
-        sb.append("Записей: ").append(txs.size()).append("\n");
+        sb.append("*").append(sub.getName()).append("*\n\n");
+        sb.append("\u0412\u0441\u0435\u0433\u043e: *").append(fmt(total)).append("*  \u2022  ").append(txs.size()).append(" \u0437\u0430\u043f\u0438\u0441\u0435\u0439\n");
 
         if (!txs.isEmpty()) {
             BigDecimal avg = total.divide(BigDecimal.valueOf(txs.size()), 0, RoundingMode.HALF_UP);
-            sb.append("Средний чек: *").append(fmt(avg)).append("*\n");
+            sb.append("\u0421\u0440\u0435\u0434\u043d\u0438\u0439 \u0447\u0435\u043a: *").append(fmt(avg)).append("*\n");
         }
 
         if (!txs.isEmpty()) {
-            sb.append("\n📋 *Записи:*\n\n");
-            int show = Math.min(txs.size(), 10);
+            sb.append("\n");
+            int show = Math.min(txs.size(), 8);
             for (int i = 0; i < show; i++) {
                 Transaction tx = txs.get(i);
                 sb.append(tx.getCreatedAt().toLocalDate().format(SHORT))
                         .append("  ").append(tx.getDescription())
-                        .append("  *−").append(fmt(tx.getAmount())).append("*\n");
+                        .append("  *\u2212").append(fmt(tx.getAmount())).append("*\n");
             }
-            if (txs.size() > 10)
-                sb.append("_...и ещё ").append(txs.size() - 10).append("_\n");
         }
-
-        // find top description
-        findTopDescription(txs).ifPresent(top ->
-                sb.append("\n💡 *Чаще всего:* ").append(top).append("\n"));
 
         Long catId = sub.getCategory() != null ? sub.getCategory().getId() : null;
         bot.sendMessage(chatId, sb.toString(),
@@ -267,23 +246,22 @@ public class OverviewHandler {
     }
 
     // ================================================================
-    // 4. DAYS VIEW
+    // 4. DAYS
     // ================================================================
 
     @Transactional(readOnly = true)
     public void showDays(User user, long chatId, MonetkaBot bot, long categoryId) {
         Category cat = categoryRepository.findById(categoryId).orElse(null);
-        if (cat == null) { bot.sendText(chatId, "Категория не найдена."); return; }
+        if (cat == null) { bot.sendText(chatId, "\u041a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044f \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430."); return; }
 
-        LocalDate now  = LocalDate.now(BISHKEK);
+        LocalDate now   = LocalDate.now(BISHKEK);
         LocalDateTime from = now.withDayOfMonth(1).atStartOfDay();
         LocalDateTime to   = from.plusMonths(1);
 
         List<Transaction> txs = transactionRepository.findExpensesByCategoryAndPeriod(user, categoryId, from, to);
 
-        // Group by day
-        Map<LocalDate, BigDecimal> byDay = new LinkedHashMap<>();
-        Map<LocalDate, List<String>> descs = new LinkedHashMap<>();
+        Map<LocalDate, BigDecimal>    byDay  = new LinkedHashMap<>();
+        Map<LocalDate, List<String>>  descs  = new LinkedHashMap<>();
         for (Transaction tx : txs) {
             LocalDate d = tx.getCreatedAt().toLocalDate();
             byDay.merge(d, tx.getAmount(), BigDecimal::add);
@@ -291,65 +269,43 @@ public class OverviewHandler {
         }
 
         if (byDay.isEmpty()) {
-            bot.sendMessage(chatId, "В этой категории пока нет записей 🌱",
+            bot.sendMessage(chatId, "\u0417\u0430\u043f\u0438\u0441\u0435\u0439 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442 \uD83C\uDF31",
                     KeyboardFactory.backToCategory(categoryId));
             return;
         }
 
-        // Find max for bar scaling
-        BigDecimal maxDay = byDay.values().stream().max(BigDecimal::compareTo).orElse(BigDecimal.ONE);
-
         StringBuilder sb = new StringBuilder();
         sb.append(cat.getEmoji() != null ? cat.getEmoji() + " " : "");
-        sb.append("*").append(cat.getName()).append(" по дням*\n\n");
+        sb.append("*").append(cat.getName()).append(" \u043f\u043e \u0434\u043d\u044f\u043c*\n\n");
 
-        // Sort days ascending
         new TreeMap<>(byDay).forEach((day, amt) -> {
-            int bars = maxDay.compareTo(BigDecimal.ZERO) > 0
-                    ? amt.multiply(BigDecimal.valueOf(8))
-                    .divide(maxDay, 0, RoundingMode.HALF_UP).intValue()
-                    : 0;
-            sb.append(day.format(SHORT)).append("  ");
-            sb.append("█".repeat(Math.max(1, bars)));
-            sb.append("  *").append(fmt(amt)).append("*");
+            sb.append(day.format(SHORT)).append("  *\u2212").append(fmt(amt)).append("*");
             List<String> ds = descs.get(day);
             if (ds != null && ds.size() == 1) sb.append("  _").append(ds.get(0)).append("_");
-            else if (ds != null) sb.append("  _(").append(ds.size()).append(" записи)_");
+            else if (ds != null && ds.size() > 1) sb.append("  _(").append(ds.size()).append(" \u0437\u0430\u043f\u0438\u0441\u0438)_");
             sb.append("\n");
         });
-
-        // Insight — busiest day of week
-        Map<String, BigDecimal> byWeekday = new LinkedHashMap<>();
-        byDay.forEach((day, amt) -> {
-            String wd = day.getDayOfWeek().getDisplayName(
-                    java.time.format.TextStyle.FULL_STANDALONE, new Locale("ru"));
-            byWeekday.merge(wd, amt, BigDecimal::add);
-        });
-        byWeekday.entrySet().stream()
-                .max(Map.Entry.comparingByValue())
-                .ifPresent(e -> sb.append("\n💡 Больше всего тратишь по _")
-                        .append(e.getKey()).append("_\n"));
 
         bot.sendMessage(chatId, sb.toString(), KeyboardFactory.backToCategory(categoryId));
     }
 
     // ================================================================
-    // 5. GOALS MANAGEMENT
+    // 5. GOALS
     // ================================================================
 
     @Transactional(readOnly = true)
     public void showGoals(User user, long chatId, MonetkaBot bot) {
-        List<BudgetGoal> goals = budgetService.getGoals(user);
+        List<BudgetGoal> goals  = budgetService.getGoals(user);
         List<Category>   allCats = categoryRepository.findAllByIsDefaultFalseOrderByName();
 
-        StringBuilder sb = new StringBuilder("🎯 *Мои цели на месяц*\n\n");
+        StringBuilder sb = new StringBuilder("\uD83C\uDFAF *\u041C\u043E\u0438 \u0446\u0435\u043B\u0438 \u043D\u0430 \u043C\u0435\u0441\u044F\u0446*\n\n");
 
         if (goals.isEmpty()) {
-            sb.append("_Целей пока нет._\n\n");
-            sb.append("Нажми на категорию чтобы поставить цель.\n");
-            sb.append("Бот подскажет реалистичную цифру на основе твоей истории 💡\n");
+            sb.append("_\u0426\u0435\u043b\u0435\u0439 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442._\n\n");
+            sb.append("\u0426\u0435\u043b\u044c \u2014 \u044d\u0442\u043e \u043c\u0430\u043a\u0441\u0438\u043c\u0430\u043b\u044c\u043d\u044b\u0439 \u0431\u044e\u0434\u0436\u0435\u0442 \u043d\u0430 \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044e.\n");
+            sb.append("\u0411\u043e\u0442 \u043d\u0430\u043f\u043e\u043c\u043d\u0438\u0442 \u043a\u043e\u0433\u0434\u0430 \u0431\u0443\u0434\u0435\u0448\u044c \u0431\u043b\u0438\u0437\u043a\u043e \u043a \u043b\u0438\u043c\u0438\u0442\u0443 \uD83D\uDCA1\n");
         } else {
-            LocalDate now  = LocalDate.now(BISHKEK);
+            LocalDate now   = LocalDate.now(BISHKEK);
             LocalDateTime from = now.withDayOfMonth(1).atStartOfDay();
             LocalDateTime to   = from.plusMonths(1);
 
@@ -359,10 +315,11 @@ public class OverviewHandler {
                         ? spent.multiply(BigDecimal.valueOf(100))
                         .divide(g.getAmount(), 0, RoundingMode.HALF_UP).intValue()
                         : 0;
+                String icon = pct >= 100 ? "\uD83D\uDD34" : pct >= 80 ? "\uD83D\uDFE1" : "\u2705";
                 sb.append(g.getCategory().getEmoji() != null ? g.getCategory().getEmoji() + " " : "");
-                sb.append("*").append(g.getCategory().getName()).append("*  ");
-                sb.append(fmt(spent)).append(" / ").append(fmt(g.getAmount())).append("\n");
-                sb.append(progressBar(pct)).append("  ").append(pct).append("%\n\n");
+                sb.append("*").append(g.getCategory().getName()).append("*\n");
+                sb.append(icon).append(" ").append(fmt(spent)).append(" / ").append(fmt(g.getAmount()));
+                sb.append("  (").append(pct).append("%)\n\n");
             }
         }
 
@@ -370,13 +327,13 @@ public class OverviewHandler {
     }
 
     // ================================================================
-    // 6. SET GOAL — step 1: show suggestion
+    // 6. SET GOAL
     // ================================================================
 
     @Transactional
     public void startSetGoal(User user, long chatId, MonetkaBot bot, long categoryId) {
         Category cat = categoryRepository.findById(categoryId).orElse(null);
-        if (cat == null) { bot.sendText(chatId, "Категория не найдена."); return; }
+        if (cat == null) { bot.sendText(chatId, "\u041a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044f \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430."); return; }
 
         BigDecimal suggested = budgetService.suggestGoal(user, cat);
         String catLabel = (cat.getEmoji() != null ? cat.getEmoji() + " " : "") + cat.getName();
@@ -385,22 +342,18 @@ public class OverviewHandler {
         stateService.putData(user.getTelegramId(), "goal_category_id", String.valueOf(categoryId));
 
         StringBuilder sb = new StringBuilder();
-        sb.append("🎯 *Цель для «").append(catLabel).append("»*\n\n");
-
-        if (suggested.compareTo(BigDecimal.ZERO) > 0) {
-            sb.append("За последние 3 месяца ты тратил в среднем\n");
-            sb.append("*").append(fmt(suggested.divide(BigDecimal.valueOf(1.1), 0, RoundingMode.HALF_UP))).append("* в месяц.\n\n");
-            sb.append("💡 Моё предложение: *").append(fmt(suggested)).append("*\n");
-            sb.append("_(чуть выше среднего — реалистично)_\n\n");
-        }
+        sb.append("\uD83C\uDFAF *\u0426\u0435\u043b\u044c \u2014 ").append(catLabel).append("*\n\n");
 
         budgetService.getGoal(user, cat).ifPresent(g ->
-                sb.append("Текущая цель: *").append(fmt(g.getAmount())).append("*\n\n"));
+                sb.append("\u0422\u0435\u043a\u0443\u0449\u0430\u044f \u0446\u0435\u043b\u044c: *").append(fmt(g.getAmount())).append("*\n\n"));
 
-        sb.append("Введи свою цифру в сомах:");
+        if (suggested.compareTo(BigDecimal.ZERO) > 0) {
+            sb.append("\uD83D\uDCA1 \u041f\u0440\u0435\u0434\u043b\u0430\u0433\u0430\u044e: *").append(fmt(suggested)).append("*\n");
+            sb.append("_(\u043d\u0430 \u043e\u0441\u043d\u043e\u0432\u0435 \u0442\u0432\u043e\u0435\u0439 \u0438\u0441\u0442\u043e\u0440\u0438\u0438)_\n\n");
+        }
+        sb.append("\u0412\u0432\u0435\u0434\u0438 \u0441\u0443\u043c\u043c\u0443 \u0432 \u0441\u043e\u043c\u0430\u0445:");
 
-        bot.sendMessage(chatId, sb.toString(),
-                com.monetka.bot.keyboard.KeyboardFactory.cancelMenu());
+        bot.sendMessage(chatId, sb.toString(), KeyboardFactory.cancelMenu());
     }
 
     // ================================================================
@@ -412,94 +365,56 @@ public class OverviewHandler {
         Category cat = categoryRepository.findById(categoryId).orElse(null);
         if (cat == null) return;
         budgetService.deleteGoal(user, cat);
-        bot.sendMarkdown(chatId, "🗑 Цель для *" + cat.getName() + "* удалена.");
+        bot.sendMarkdown(chatId, "\uD83D\uDDD1 \u0426\u0435\u043b\u044c *" + cat.getName() + "* \u0443\u0434\u0430\u043b\u0435\u043d\u0430.");
         showGoals(user, chatId, bot);
     }
 
     // ================================================================
-    // 8. DELETE TRANSACTION
-    // ================================================================
-
-    @Transactional(readOnly = true)
-    public void confirmDeleteTx(User user, long chatId, MonetkaBot bot, long txId) {
-        transactionRepository.findById(txId).ifPresentOrElse(tx -> {
-            if (!tx.getUser().getId().equals(user.getId())) return;
-            String catName = tx.getCategory() != null ? tx.getCategory().getName() : "—";
-            bot.sendMessage(chatId,
-                    "🗑 *Удалить запись?*\n\n" +
-                            "📝 " + tx.getDescription() + "\n" +
-                            "💸 −" + fmt(tx.getAmount()) + "\n" +
-                            "🏷 " + catName + "\n" +
-                            "📅 " + tx.getCreatedAt().toLocalDate().format(DATE_FMT),
-                    KeyboardFactory.confirmDeleteTx(txId));
-        }, () -> bot.sendText(chatId, "Запись не найдена."));
-    }
-
-    @Transactional
-    public void doDeleteTx(User user, long chatId, MonetkaBot bot, long txId) {
-        transactionRepository.findById(txId).ifPresentOrElse(tx -> {
-            if (!tx.getUser().getId().equals(user.getId())) {
-                bot.sendText(chatId, "Нет доступа.");
-                return;
-            }
-            // Restore balance
-            user.setBalance(user.getBalance().add(tx.getAmount()));
-            transactionRepository.delete(tx);
-            bot.sendMarkdown(chatId, "✅ Запись удалена. Баланс восстановлен.");
-        }, () -> bot.sendText(chatId, "Запись не найдена."));
-    }
-
-    // ================================================================
-    // Handle WAITING_GOAL_AMOUNT text input
-    // ================================================================
-
-    @Transactional
-    public boolean handleGoalAmountInput(User user, String text, long chatId, MonetkaBot bot) {
-        String catIdStr = stateService.getData(user.getTelegramId(), "goal_category_id");
-        if (catIdStr == null) { stateService.reset(user.getTelegramId()); return false; }
-
-        BigDecimal amount;
-        try {
-            amount = new BigDecimal(text.replace(",", ".").replace(" ", ""));
-            if (amount.compareTo(BigDecimal.ZERO) <= 0) throw new NumberFormatException();
-        } catch (NumberFormatException e) {
-            bot.sendMessage(chatId, "Введи число, например: *15000*",
-                    KeyboardFactory.cancelMenu());
-            return true;
-        }
-
-        Category cat = categoryRepository.findById(Long.parseLong(catIdStr)).orElse(null);
-        if (cat == null) { stateService.reset(user.getTelegramId()); return false; }
-
-        budgetService.setGoal(user, cat, amount);
-        stateService.reset(user.getTelegramId());
-
-        String catLabel = (cat.getEmoji() != null ? cat.getEmoji() + " " : "") + cat.getName();
-        bot.sendMessage(chatId,
-                "✅ *Цель установлена!*\n\n" +
-                        catLabel + "  →  *" + fmt(amount) + " / мес*\n\n" +
-                        "Буду напоминать при 80%, 90% и 100% 💡",
-                KeyboardFactory.mainMenu());
-        return true;
-    }
-
-    // ================================================================
-    // 9. EDIT TRANSACTION
+    // 8. TRANSACTION DETAIL + EDIT
     // ================================================================
 
     @Transactional(readOnly = true)
     public void showTxDetail(User user, long chatId, MonetkaBot bot, long txId) {
         transactionRepository.findById(txId).ifPresentOrElse(tx -> {
             if (!tx.getUser().getId().equals(user.getId())) return;
-            String catName = tx.getCategory() != null ? tx.getCategory().getDisplayName() : "—";
+            String catName = tx.getCategory() != null ? tx.getCategory().getDisplayName() : "\u2014";
             bot.sendMessage(chatId,
-                    "📝 *" + tx.getDescription() + "*\n\n" +
-                            "💸 −" + fmt(tx.getAmount()) + "\n" +
-                            "🏷 " + catName + "\n" +
-                            "📅 " + tx.getCreatedAt().toLocalDate().format(DATE_FMT) + "\n\n" +
-                            "Что хочешь сделать?",
+                    "\uD83D\uDCDD *" + tx.getDescription() + "*\n\n" +
+                            "\uD83D\uDCB8 \u2212" + fmt(tx.getAmount()) + "\n" +
+                            "\uD83C\uDFF7 " + catName + "\n" +
+                            "\uD83D\uDCC5 " + tx.getCreatedAt().toLocalDate().format(DATE_FMT) + "\n\n" +
+                            "\u0427\u0442\u043e \u0445\u043e\u0447\u0435\u0448\u044c \u0441\u0434\u0435\u043b\u0430\u0442\u044c?",
                     KeyboardFactory.editTxOptions(txId));
-        }, () -> bot.sendText(chatId, "Запись не найдена."));
+        }, () -> bot.sendText(chatId, "\u0417\u0430\u043f\u0438\u0441\u044c \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430."));
+    }
+
+    @Transactional
+    public void confirmDeleteTx(User user, long chatId, MonetkaBot bot, long txId) {
+        transactionRepository.findById(txId).ifPresentOrElse(tx -> {
+            if (!tx.getUser().getId().equals(user.getId())) return;
+            String catName = tx.getCategory() != null ? tx.getCategory().getName() : "\u2014";
+            bot.sendMessage(chatId,
+                    "\uD83D\uDDD1 *\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u0437\u0430\u043f\u0438\u0441\u044c?*\n\n" +
+                            "\uD83D\uDCDD " + tx.getDescription() + "\n" +
+                            "\uD83D\uDCB8 \u2212" + fmt(tx.getAmount()) + "\n" +
+                            "\uD83D\uDCC5 " + tx.getCreatedAt().toLocalDate().format(DATE_FMT),
+                    KeyboardFactory.confirmDeleteTx(txId));
+        }, () -> bot.sendText(chatId, "\u0417\u0430\u043f\u0438\u0441\u044c \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430."));
+    }
+
+    @Transactional
+    public void doDeleteTx(User user, long chatId, MonetkaBot bot, long txId) {
+        transactionRepository.findById(txId).ifPresentOrElse(tx -> {
+            if (!tx.getUser().getId().equals(user.getId())) {
+                bot.sendText(chatId, "\u041d\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u0430.");
+                return;
+            }
+            user.setBalance(user.getBalance().add(tx.getAmount()));
+            transactionRepository.delete(tx);
+            bot.sendMessage(chatId,
+                    "\u2705 \u0417\u0430\u043f\u0438\u0441\u044c \u0443\u0434\u0430\u043b\u0435\u043d\u0430.\n\u0411\u0430\u043b\u0430\u043d\u0441 \u0432\u043e\u0441\u0441\u0442\u0430\u043d\u043e\u0432\u043b\u0435\u043d: *" + fmt(user.getBalance()) + "*",
+                    KeyboardFactory.mainMenu());
+        }, () -> bot.sendText(chatId, "\u0417\u0430\u043f\u0438\u0441\u044c \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430."));
     }
 
     @Transactional
@@ -509,11 +424,11 @@ public class OverviewHandler {
             stateService.setState(user.getTelegramId(), UserState.WAITING_EDIT_AMOUNT);
             stateService.putData(user.getTelegramId(), "edit_tx_id", String.valueOf(txId));
             bot.sendMessage(chatId,
-                    "💸 *Изменить сумму*\n\n" +
-                            "Текущая: *" + fmt(tx.getAmount()) + "*\n\n" +
-                            "Введи новую сумму:",
+                    "\uD83D\uDCB8 *\u0418\u0437\u043c\u0435\u043d\u0438\u0442\u044c \u0441\u0443\u043c\u043c\u0443*\n\n" +
+                            "\u0422\u0435\u043a\u0443\u0449\u0430\u044f: *" + fmt(tx.getAmount()) + "*\n\n" +
+                            "\u0412\u0432\u0435\u0434\u0438 \u043d\u043e\u0432\u0443\u044e \u0441\u0443\u043c\u043c\u0443:",
                     KeyboardFactory.cancelMenu());
-        }, () -> bot.sendText(chatId, "Запись не найдена."));
+        }, () -> bot.sendText(chatId, "\u0417\u0430\u043f\u0438\u0441\u044c \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430."));
     }
 
     @Transactional
@@ -523,11 +438,11 @@ public class OverviewHandler {
             stateService.setState(user.getTelegramId(), UserState.WAITING_EDIT_DESCRIPTION);
             stateService.putData(user.getTelegramId(), "edit_tx_id", String.valueOf(txId));
             bot.sendMessage(chatId,
-                    "📝 *Изменить описание*\n\n" +
-                            "Текущее: *" + tx.getDescription() + "*\n\n" +
-                            "Введи новое описание:",
+                    "\uD83D\uDCDD *\u0418\u0437\u043c\u0435\u043d\u0438\u0442\u044c \u043e\u043f\u0438\u0441\u0430\u043d\u0438\u0435*\n\n" +
+                            "\u0422\u0435\u043a\u0443\u0449\u0435\u0435: *" + tx.getDescription() + "*\n\n" +
+                            "\u0412\u0432\u0435\u0434\u0438 \u043d\u043e\u0432\u043e\u0435 \u043e\u043f\u0438\u0441\u0430\u043d\u0438\u0435:",
                     KeyboardFactory.cancelMenu());
-        }, () -> bot.sendText(chatId, "Запись не найдена."));
+        }, () -> bot.sendText(chatId, "\u0437\u0430\u043f\u0438\u0441\u044c \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430."));
     }
 
     @Transactional
@@ -540,27 +455,23 @@ public class OverviewHandler {
             newAmount = new BigDecimal(text.replace(",", ".").replace(" ", ""));
             if (newAmount.compareTo(BigDecimal.ZERO) <= 0) throw new NumberFormatException();
         } catch (NumberFormatException e) {
-            bot.sendMessage(chatId, "Введи число, например: *1500*", KeyboardFactory.cancelMenu());
+            bot.sendMessage(chatId, "\u0412\u0432\u0435\u0434\u0438 \u0447\u0438\u0441\u043b\u043e, \u043d\u0430\u043f\u0440\u0438\u043c\u0435\u0440: *1500*", KeyboardFactory.cancelMenu());
             return true;
         }
 
         transactionRepository.findById(Long.parseLong(txIdStr)).ifPresent(tx -> {
             if (!tx.getUser().getId().equals(user.getId())) return;
             BigDecimal diff = newAmount.subtract(tx.getAmount());
-            // Update user balance: if expense, adjust by diff
-            if (tx.getType().name().equals("EXPENSE")) {
-                user.setBalance(user.getBalance().subtract(diff));
-            } else {
-                user.setBalance(user.getBalance().add(diff));
-            }
+            if (tx.getType().name().equals("EXPENSE")) user.setBalance(user.getBalance().subtract(diff));
+            else user.setBalance(user.getBalance().add(diff));
             tx.setAmount(newAmount);
             transactionRepository.save(tx);
             stateService.reset(user.getTelegramId());
             bot.sendMessage(chatId,
-                    "✅ *Сумма обновлена!*\n\n" +
-                            "📝 " + tx.getDescription() + "\n" +
-                            "💸 −" + fmt(newAmount) + "\n" +
-                            "💳 Баланс: *" + fmt(user.getBalance()) + "*",
+                    "\u2705 *\u0421\u0443\u043c\u043c\u0430 \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0430!*\n\n" +
+                            "\uD83D\uDCDD " + tx.getDescription() + "\n" +
+                            "\uD83D\uDCB8 \u2212" + fmt(newAmount) + "\n" +
+                            "\uD83D\uDCB3 \u0411\u0430\u043b\u0430\u043d\u0441: *" + fmt(user.getBalance()) + "*",
                     KeyboardFactory.mainMenu());
         });
         return true;
@@ -571,21 +482,48 @@ public class OverviewHandler {
         String txIdStr = stateService.getData(user.getTelegramId(), "edit_tx_id");
         if (txIdStr == null) { stateService.reset(user.getTelegramId()); return false; }
         if (text.isBlank()) {
-            bot.sendMessage(chatId, "Описание не может быть пустым 🙏", KeyboardFactory.cancelMenu());
+            bot.sendMessage(chatId, "\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u043d\u0435 \u043c\u043e\u0436\u0435\u0442 \u0431\u044b\u0442\u044c \u043f\u0443\u0441\u0442\u044b\u043c", KeyboardFactory.cancelMenu());
             return true;
         }
-
         transactionRepository.findById(Long.parseLong(txIdStr)).ifPresent(tx -> {
             if (!tx.getUser().getId().equals(user.getId())) return;
             tx.setDescription(text.trim());
             transactionRepository.save(tx);
             stateService.reset(user.getTelegramId());
             bot.sendMessage(chatId,
-                    "✅ *Описание обновлено!*\n\n" +
-                            "📝 " + text.trim() + "\n" +
-                            "💸 −" + fmt(tx.getAmount()),
+                    "\u2705 *\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u043e!*\n\n" +
+                            "\uD83D\uDCDD " + text.trim() + "\n" +
+                            "\uD83D\uDCB8 \u2212" + fmt(tx.getAmount()),
                     KeyboardFactory.mainMenu());
         });
+        return true;
+    }
+
+    @Transactional
+    public boolean handleGoalAmountInput(User user, String text, long chatId, MonetkaBot bot) {
+        String catIdStr = stateService.getData(user.getTelegramId(), "goal_category_id");
+        if (catIdStr == null) { stateService.reset(user.getTelegramId()); return false; }
+
+        BigDecimal amount;
+        try {
+            amount = new BigDecimal(text.replace(",", ".").replace(" ", ""));
+            if (amount.compareTo(BigDecimal.ZERO) <= 0) throw new NumberFormatException();
+        } catch (NumberFormatException e) {
+            bot.sendMessage(chatId, "\u0412\u0432\u0435\u0434\u0438 \u0447\u0438\u0441\u043b\u043e, \u043d\u0430\u043f\u0440\u0438\u043c\u0435\u0440: *15000*", KeyboardFactory.cancelMenu());
+            return true;
+        }
+
+        Category cat = categoryRepository.findById(Long.parseLong(catIdStr)).orElse(null);
+        if (cat == null) { stateService.reset(user.getTelegramId()); return false; }
+
+        budgetService.setGoal(user, cat, amount);
+        stateService.reset(user.getTelegramId());
+        String catLabel = (cat.getEmoji() != null ? cat.getEmoji() + " " : "") + cat.getName();
+        bot.sendMessage(chatId,
+                "\u2705 *\u0426\u0435\u043b\u044c \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u043b\u0435\u043d\u0430!*\n\n" +
+                        catLabel + "  \u2192  *" + fmt(amount) + " / \u043c\u0435\u0441*\n\n" +
+                        "\uD83D\uDCA1 \u041d\u0430\u043f\u043e\u043c\u043d\u044e \u043f\u0440\u0438 80%, 90% \u0438 100%",
+                KeyboardFactory.mainMenu());
         return true;
     }
 
@@ -593,34 +531,8 @@ public class OverviewHandler {
     // Helpers
     // ================================================================
 
-    private String progressBar(int percent) {
-        int filled = Math.min(10, percent / 10);
-        int empty  = 10 - filled;
-        String bar = "█".repeat(filled) + "░".repeat(empty);
-        return percent >= 100 ? "🔴 " + bar : (percent >= 80 ? "🟡 " + bar : "✅ " + bar);
-    }
-
-    private String goalBar(int percent) {
-        if (percent >= 100) return "🔴";
-        if (percent >= 80)  return "🟡";
-        return "✅";
-    }
-
     private String extractName(String label) {
-        // "🍕 Еда" → "Еда"
         return label.replaceAll("^[\\p{So}\\p{Sm}\\s]+", "").trim();
-    }
-
-    private Optional<String> findTopDescription(List<Transaction> txs) {
-        Map<String, Integer> freq = new HashMap<>();
-        for (Transaction tx : txs) {
-            if (tx.getDescription() != null)
-                freq.merge(tx.getDescription().toLowerCase(), 1, Integer::sum);
-        }
-        return freq.entrySet().stream()
-                .max(Map.Entry.comparingByValue())
-                .filter(e -> e.getValue() > 1)
-                .map(e -> e.getKey() + " (" + e.getValue() + " раз)");
     }
 
     private long parseId(String action) {
@@ -628,6 +540,5 @@ public class OverviewHandler {
     }
 
     private BigDecimal safe(BigDecimal v) { return v != null ? v : BigDecimal.ZERO; }
-
-    private String fmt(BigDecimal v) { return String.format("%,.0f сом", v); }
+    private String fmt(BigDecimal v) { return String.format("%,.0f \u0441\u043e\u043c", v); }
 }
