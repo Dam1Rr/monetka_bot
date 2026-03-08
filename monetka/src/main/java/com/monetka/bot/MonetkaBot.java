@@ -8,6 +8,8 @@ import org.telegram.telegrambots.bots.TelegramWebhookBot;
 import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboard;
@@ -77,6 +79,20 @@ public class MonetkaBot extends TelegramWebhookBot {
             execute(doc);
         } catch (TelegramApiException e) {
             logger.error("Failed to send document to {}: {}", chatId, e.getMessage());
+        }
+    }
+
+    public void editMessage(long chatId, int messageId, String text, InlineKeyboardMarkup keyboard) {
+        try {
+            EditMessageText.EditMessageTextBuilder b = EditMessageText.builder()
+                    .chatId(String.valueOf(chatId))
+                    .messageId(messageId)
+                    .text(text)
+                    .parseMode("Markdown");
+            if (keyboard != null) b.replyMarkup(keyboard);
+            execute(b.build());
+        } catch (TelegramApiException e) {
+            logger.warn("editMessage failed: {}", e.getMessage());
         }
     }
 

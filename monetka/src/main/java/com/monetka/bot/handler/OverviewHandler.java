@@ -1,7 +1,9 @@
 package com.monetka.bot.handler;
 
 import com.monetka.bot.MonetkaBot;
+import com.monetka.service.ReportService;
 import com.monetka.bot.keyboard.KeyboardFactory;
+import java.time.format.TextStyle;
 import com.monetka.model.*;
 import com.monetka.model.enums.UserState;
 import com.monetka.repository.*;
@@ -17,6 +19,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.Locale;
 
 @Component
 public class OverviewHandler {
@@ -32,6 +35,7 @@ public class OverviewHandler {
     private final CategoryRepository    categoryRepository;
     private final SubcategoryRepository subcategoryRepository;
     private final PaydayService         paydayService;
+    private final ReportService         reportService;
 
     public OverviewHandler(StatisticsService statisticsService,
                            BudgetService budgetService,
@@ -39,7 +43,8 @@ public class OverviewHandler {
                            TransactionRepository transactionRepository,
                            CategoryRepository categoryRepository,
                            SubcategoryRepository subcategoryRepository,
-                           PaydayService paydayService) {
+                           PaydayService paydayService,
+                           ReportService reportService) {
         this.statisticsService     = statisticsService;
         this.budgetService         = budgetService;
         this.stateService          = stateService;
@@ -47,6 +52,7 @@ public class OverviewHandler {
         this.categoryRepository    = categoryRepository;
         this.subcategoryRepository = subcategoryRepository;
         this.paydayService         = paydayService;
+        this.reportService         = reportService;
     }
 
     // ================================================================
@@ -54,8 +60,19 @@ public class OverviewHandler {
     // ================================================================
 
     @Transactional
-    public void handle(String action, User user, long chatId, MonetkaBot bot) {
+    public void handle(String action, User user, long chatId, int messageId, MonetkaBot bot) {
         if      (action.equals("main"))                showMain(user, chatId, bot);
+            // ── Tab navigation — edit existing message ──
+        else if (action.equals("tab:today"))           showTabToday(user, chatId, messageId, bot);
+        else if (action.equals("tab:week"))            showTabWeek(user, chatId, messageId, bot);
+        else if (action.equals("tab:month"))           showTabMonth(user, chatId, messageId, bot);
+        else if (action.equals("tab:period"))          showTabPeriod(user, chatId, messageId, bot);
+        else if (action.equals("tab:limits"))          showTabLimits(user, chatId, messageId, bot);
+            // ── Period quick picks ──
+        else if (action.startsWith("period:"))         handlePeriodPick(user, action, chatId, messageId, bot);
+            // ── Calendar ──
+        else if (action.startsWith("cal:"))            handleCalendar(user, action, chatId, messageId, bot);
+            // ── Existing drill-down ──
         else if (action.startsWith("cat:"))            showCategory(user, chatId, bot, parseId(action));
         else if (action.startsWith("subcat:"))         showSubcategory(user, chatId, bot, parseId(action));
         else if (action.startsWith("days:"))           showDays(user, chatId, bot, parseId(action));
@@ -70,7 +87,245 @@ public class OverviewHandler {
     }
 
     // ================================================================
+    // TAB: СЕГОДНЯ
+    // ================================================================
+
+    private void showTabToday(User user, long chatId, int msgId, MonetkaBot bot) {
+        String text = reportService.buildTodayStats(user);
+        bot.editMessage(chatId, msgId, text, KeyboardFactory.navTabs("today"));
+    }
+
+    // ================================================================
+    // TAB: НЕДЕЛЯ
+    // ================================================================
+
+    private void showTabWeek(User user, long chatId, int msgId, MonetkaBot bot) {
+        String text = reportService.buildWeekStats(user);
+        bot.editMessage(chatId, msgId, text, KeyboardFactory.navTabs("week"));
+    }
+
+    // ================================================================
+    // TAB: МЕСЯЦ
+    // ================================================================
+
+    private void showTabMonth(User user, long chatId, int msgId, MonetkaBot bot) {
+        String text = reportService.buildMonthStats(user);
+        // Month also gets category drill-down buttons + navtabs combined
+        List<StatisticsService.CategoryStats> cats =
+                statisticsService.getDetailedExpenses(user,
+                        LocalDate.now(BISHKEK).withDayOfMonth(1).atStartOfDay(),
+                        LocalDate.now(BISHKEK).withDayOfMonth(1).atStartOfDay().plusMonths(1));
+
+        // Build combined keyboard: categories on top rows + navtabs last row
+        List<List<org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton>> rows = new ArrayList<>();
+        List<org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton> row = new ArrayList<>();
+        int show = Math.min(cats.size(), 6);
+        for (int i = 0; i < show; i++) {
+            StatisticsService.CategoryStats cs = cats.get(i);
+            String name = cs.label.replaceAll("^[\\p{So}\\p{Sm}\\s]+", "").trim();
+            categoryRepository.findByName(name).ifPresent(cat ->
+                    row.add(org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton.builder()
+                            .text(cs.label).callbackData("overview:cat:" + cat.getId()).build()));
+            if (row.size() == 2) { rows.add(new ArrayList<>(row)); row.clear(); }
+        }
+        if (!row.isEmpty()) rows.add(new ArrayList<>(row));
+
+        // Add navtabs row
+        org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup navKb = KeyboardFactory.navTabs("month");
+        rows.addAll(navKb.getKeyboard());
+        bot.editMessage(chatId, msgId, text,
+                org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup.builder().keyboard(rows).build());
+    }
+
+    // ================================================================
+    // TAB: ПЕРИОД — quick picks
+    // ================================================================
+
+    private void showTabPeriod(User user, long chatId, int msgId, MonetkaBot bot) {
+        // Combine periodPicker rows + navtabs
+        List<List<org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton>> rows = new ArrayList<>();
+        rows.addAll(KeyboardFactory.periodPicker().getKeyboard());
+        rows.addAll(KeyboardFactory.navTabs("period").getKeyboard());
+        bot.editMessage(chatId, msgId,
+                "\uD83D\uDCCA *Статистика за период*\n\nВыбери готовый или укажи свои даты:",
+                org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup.builder().keyboard(rows).build());
+    }
+
+    private void handlePeriodPick(User user, String action, long chatId, int msgId, MonetkaBot bot) {
+        String period = action.substring(7); // strip "period:"
+        String text;
+        switch (period) {
+            case "today" -> text = reportService.buildTodayStats(user);
+            case "week"  -> text = reportService.buildWeekStats(user);
+            case "month" -> text = reportService.buildMonthStats(user);
+            case "cal"   -> { showCalendar(chatId, msgId, bot, LocalDate.now(BISHKEK).getYear(),
+                    LocalDate.now(BISHKEK).getMonthValue(), null, null); return; }
+            default      -> text = "Неизвестный период";
+        }
+        // Result + period nav + navtabs
+        List<List<org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton>> rows = new ArrayList<>();
+        rows.addAll(KeyboardFactory.periodPicker().getKeyboard());
+        rows.addAll(KeyboardFactory.navTabs("period").getKeyboard());
+        bot.editMessage(chatId, msgId, text,
+                org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup.builder().keyboard(rows).build());
+    }
+
+    // ================================================================
+    // CALENDAR — range picker
+    // ================================================================
+
+    private void showCalendar(long chatId, int msgId, MonetkaBot bot,
+                              int year, int month, Integer startDay, Integer endDay) {
+        bot.editMessage(chatId, msgId,
+                "\uD83D\uDDD3 *Выбери период*\n\n_Тап — начало, второй тап — конец:_",
+                KeyboardFactory.calendarMonth(year, month, startDay, endDay));
+    }
+
+    private void handleCalendar(User user, String action, long chatId, int msgId, MonetkaBot bot) {
+        // action formats:
+        //   cal:prev:year:month
+        //   cal:next:year:month
+        //   cal:day:year:month:day
+        //   cal:confirm:year:month:start:end
+        String[] parts = action.split(":");
+        String sub = parts[1];
+
+        if (sub.equals("prev") || sub.equals("next")) {
+            int year  = Integer.parseInt(parts[2]);
+            int month = Integer.parseInt(parts[3]);
+            month = sub.equals("next") ? (month == 12 ? 1 : month + 1) : (month == 1 ? 12 : month - 1);
+            year  = sub.equals("next") ? (month == 1 ? year + 1 : year) : (month == 12 ? year - 1 : year);
+            showCalendar(chatId, msgId, bot, year, month, null, null);
+            return;
+        }
+
+        if (sub.equals("day")) {
+            int year  = Integer.parseInt(parts[2]);
+            int month = Integer.parseInt(parts[3]);
+            int day   = Integer.parseInt(parts[4]);
+            // Store in user state: cal_start, cal_end
+            String stored = stateService.getData(user.getTelegramId(), "cal_start");
+            String storedEnd = stateService.getData(user.getTelegramId(), "cal_end");
+            if (stored == null || (storedEnd != null && !storedEnd.isEmpty())) {
+                // First tap — set start
+                stateService.putData(user.getTelegramId(), "cal_start", year + ":" + month + ":" + day);
+                // reset cal_end by setting fresh start
+                showCalendar(chatId, msgId, bot, year, month, day, null);
+            } else {
+                // Second tap — set end
+                String[] startParts = stored.split(":");
+                int startDay = Integer.parseInt(startParts[2]);
+                int endDay   = day;
+                if (endDay < startDay) { int tmp = startDay; startDay = endDay; endDay = tmp; }
+                stateService.putData(user.getTelegramId(), "cal_end", year + ":" + month + ":" + endDay);
+                showCalendar(chatId, msgId, bot, year, month, startDay, endDay);
+            }
+            return;
+        }
+
+        if (sub.equals("confirm")) {
+            int year  = Integer.parseInt(parts[2]);
+            int month = Integer.parseInt(parts[3]);
+            int start = Integer.parseInt(parts[4]);
+            int end   = Integer.parseInt(parts[5]);
+            stateService.putData(user.getTelegramId(), "cal_start", null);
+            // reset cal_end by setting fresh start
+
+            LocalDateTime from = LocalDate.of(year, month, start).atStartOfDay();
+            LocalDateTime to   = LocalDate.of(year, month, end).plusDays(1).atStartOfDay();
+            String monthName = from.getMonth().getDisplayName(
+                    java.time.format.TextStyle.FULL_STANDALONE, new Locale("ru"));
+            String label = start + "–" + end + " " + monthName;
+            String text = reportService.buildRangeStats(user, from, to, label);
+
+            List<List<org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton>> rows = new ArrayList<>();
+            rows.addAll(KeyboardFactory.periodPicker().getKeyboard());
+            rows.addAll(KeyboardFactory.navTabs("period").getKeyboard());
+            bot.editMessage(chatId, msgId, text,
+                    org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup.builder().keyboard(rows).build());
+        }
+    }
+
+    // ================================================================
+    // TAB: ЛИМИТЫ
+    // ================================================================
+
+    private void showTabLimits(User user, long chatId, int msgId, MonetkaBot bot) {
+        List<BudgetGoal> goals   = budgetService.getGoals(user);
+        List<Category>   allCats = categoryRepository.findAllByIsDefaultFalseOrderByName();
+
+        // Tips that rotate
+        String[] tips = {
+                "Лимит — это не ограничение. Это разрешение тратить без чувства вины.",
+                "Люди с бюджетом по категориям тратят на 20% меньше.",
+                "Поставь лимит один раз — бот сам напомнит когда пора остановиться.",
+                "Без лимитов деньги уходят незаметно. С лимитами — ты сам решаешь куда.",
+        };
+        String tip = tips[(int)(System.currentTimeMillis() / 60000 % tips.length)];
+
+        StringBuilder sb = new StringBuilder("\uD83C\uDFAF *Лимиты на месяц*\n\n");
+        sb.append("_").append(tip).append("_\n\n");
+
+        if (goals.isEmpty()) {
+            sb.append("Лимитов пока нет.\nВыбери категорию чтобы установить максимум:\n");
+        } else {
+            LocalDate now = LocalDate.now(BISHKEK);
+            LocalDateTime from = now.withDayOfMonth(1).atStartOfDay();
+            LocalDateTime to   = from.plusMonths(1);
+            for (BudgetGoal g : goals) {
+                BigDecimal spent = budgetService.getCategorySpentForPeriod(user, g.getCategory(), from, to);
+                int pct = g.getAmount().compareTo(BigDecimal.ZERO) > 0
+                        ? spent.multiply(BigDecimal.valueOf(100))
+                        .divide(g.getAmount(), 0, RoundingMode.HALF_UP).intValue()
+                        : 0;
+                String icon = pct >= 100 ? "\uD83D\uDD34" : pct >= 80 ? "\uD83D\uDFE1" : "\u2705";
+                BigDecimal left = g.getAmount().subtract(spent);
+                String leftText = left.compareTo(BigDecimal.ZERO) >= 0
+                        ? "осталось " + fmt(left)
+                        : "превышение " + fmt(left.negate());
+                if (g.getCategory().getEmoji() != null) sb.append(g.getCategory().getEmoji()).append(" ");
+                sb.append("*").append(g.getCategory().getName()).append("*  ")
+                        .append(icon).append("\n");
+                sb.append(fmt(spent)).append(" / ").append(fmt(g.getAmount()))
+                        .append("  _").append(leftText).append("_\n\n");
+            }
+        }
+
+        // Build limits keyboard (edit buttons + add buttons) + navtabs
+        List<List<org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton>> rows = new ArrayList<>();
+        // Existing goals — edit buttons
+        if (!goals.isEmpty()) {
+            List<org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton> row = new ArrayList<>();
+            for (BudgetGoal g : goals) {
+                String label = "✏️ " + (g.getCategory().getEmoji() != null ? g.getCategory().getEmoji() + " " : "") + g.getCategory().getName();
+                row.add(org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton.builder()
+                        .text(label).callbackData("overview:set_goal:" + g.getCategory().getId()).build());
+                if (row.size() == 2) { rows.add(new ArrayList<>(row)); row.clear(); }
+            }
+            if (!row.isEmpty()) rows.add(new ArrayList<>(row));
+        }
+        // Add new category buttons
+        List<org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton> addRow = new ArrayList<>();
+        Set<Long> existingIds = new java.util.HashSet<>();
+        goals.forEach(g -> existingIds.add(g.getCategory().getId()));
+        for (Category cat : allCats) {
+            if (existingIds.contains(cat.getId())) continue;
+            String catLabel = (cat.getEmoji() != null ? cat.getEmoji() + " " : "") + cat.getName();
+            addRow.add(org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton.builder()
+                    .text(catLabel).callbackData("overview:set_goal:" + cat.getId()).build());
+            if (addRow.size() == 2) { rows.add(new ArrayList<>(addRow)); addRow.clear(); }
+        }
+        if (!addRow.isEmpty()) rows.add(new ArrayList<>(addRow));
+        // NavTabs
+        rows.addAll(KeyboardFactory.navTabs("limits").getKeyboard());
+        bot.editMessage(chatId, msgId, sb.toString(),
+                org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup.builder().keyboard(rows).build());
+    }
+
+    // ================================================================
     // 1. MAIN OVERVIEW
+    // ================================================================
+
     // ================================================================
 
     @Transactional(readOnly = true)
@@ -149,7 +404,7 @@ public class OverviewHandler {
         // Append payday smart analysis if cycle active
         paydayService.getSmartAnalysis(user).ifPresent(sb::append);
 
-        bot.sendMessage(chatId, sb.toString(), KeyboardFactory.overviewMain(cats, categoryRepository));
+        bot.sendMessage(chatId, sb.toString(), KeyboardFactory.navTabs("month"));
     }
 
     // ================================================================
@@ -356,7 +611,12 @@ public class OverviewHandler {
             }
         }
 
-        bot.sendMessage(chatId, sb.toString(), KeyboardFactory.overviewGoals(goals, allCats));
+        // Combine goals keyboard + navtabs
+        List<List<org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton>> goalsRows = new ArrayList<>();
+        goalsRows.addAll(KeyboardFactory.overviewGoals(goals, allCats).getKeyboard());
+        goalsRows.addAll(KeyboardFactory.navTabs("limits").getKeyboard());
+        bot.sendMessage(chatId, sb.toString(),
+                org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup.builder().keyboard(goalsRows).build());
     }
 
     // ================================================================

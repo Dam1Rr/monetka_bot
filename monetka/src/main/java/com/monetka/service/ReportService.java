@@ -230,6 +230,11 @@ public class ReportService {
     /**
      * Detailed stats for today / week — with subcategories and percentages.
      */
+    @Transactional(readOnly = true)
+    public String buildRangeStats(User user, LocalDateTime from, LocalDateTime to, String label) {
+        return buildDetailedStats(user, from, to, label);
+    }
+
     private String buildDetailedStats(User user, LocalDateTime from,
                                       LocalDateTime to, String label) {
         BigDecimal expense = safe(transactionRepository.sumByUserAndTypeAndPeriod(user, TransactionType.EXPENSE, from, to));

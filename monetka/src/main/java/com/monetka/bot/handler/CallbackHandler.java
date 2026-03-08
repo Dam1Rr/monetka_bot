@@ -92,7 +92,7 @@ public class CallbackHandler {
         else if (data.startsWith("stats:"))        handleStats(user, data, chatId, bot);
         else if (data.startsWith("cat:"))          handleCategoryChoice(user, data, chatId, telegramId, bot);
         else if (data.startsWith("subcat:"))       handleSubcategoryChoice(user, data, chatId, telegramId, bot);
-        else if (data.startsWith("overview:"))     overviewHandler.handle(data.substring(9), user, chatId, bot);
+        else if (data.startsWith("overview:"))     overviewHandler.handle(data.substring(9), user, chatId, callback.getMessage().getMessageId(), bot);
         else if (data.startsWith("onb:"))            handleOnboarding(data, chatId, user, bot);
         else log.warn("Unknown callback: {}", data);
     }

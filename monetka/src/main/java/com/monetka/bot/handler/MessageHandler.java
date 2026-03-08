@@ -111,7 +111,6 @@ public class MessageHandler {
             case "💸 Расход" -> startExpense(chatId, telegramId, bot);
             case "💰 Доход"  -> startIncome(chatId, telegramId, bot);
             case "📊 Обзор"  -> overviewHandler.showMain(user, chatId, bot);
-            case "🎯 Лимиты"   -> overviewHandler.showGoals(user, chatId, bot);
             case "❓ Помощь"   -> sendHelp(chatId, bot);
             default -> {
                 // Если во время онбординга пользователь пишет расход — обрабатываем сразу
