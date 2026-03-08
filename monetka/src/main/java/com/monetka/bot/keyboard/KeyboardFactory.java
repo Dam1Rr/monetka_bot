@@ -51,7 +51,7 @@ public final class KeyboardFactory {
 
     private static InlineKeyboardButton tabBtn(String text, String data, boolean active) {
         return InlineKeyboardButton.builder()
-                .text(active ? "· " + text.replaceAll("^\S+\s*","") + " ·" : text)
+                .text(active ? "· " + text.replaceAll("^\\S+\\s*", "") + " ·" : text)
                 .callbackData(data)
                 .build();
     }
