@@ -153,7 +153,7 @@ public final class KeyboardFactory {
             if (!existingIds.contains(cat.getId())) {
                 String label = (cat.getEmoji() != null ? cat.getEmoji() + " " : "") + cat.getName();
                 String catLabel = (cat.getEmoji() != null ? cat.getEmoji() + " " : "") + cat.getName();
-                addRow.add(btn("+ " + catLabel, "overview:set_goal:" + cat.getId()));
+                addRow.add(btn(catLabel, "overview:set_goal:" + cat.getId()));
                 if (addRow.size() == 2) {
                     rows.add(new ArrayList<>(addRow));
                     addRow.clear();

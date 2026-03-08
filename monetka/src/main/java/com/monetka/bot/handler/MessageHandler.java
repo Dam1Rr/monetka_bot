@@ -112,6 +112,7 @@ public class MessageHandler {
             case "💰 Доход"  -> startIncome(chatId, telegramId, bot);
             case "📊 Обзор"  -> overviewHandler.showMain(user, chatId, bot);
             case "🎯 Лимиты"   -> overviewHandler.showGoals(user, chatId, bot);
+            case "❓ Помощь"   -> sendHelp(chatId, bot);
             default -> {
                 // Если во время онбординга пользователь пишет расход — обрабатываем сразу
                 ParseResult tryParse = parse(text);
@@ -349,6 +350,26 @@ public class MessageHandler {
 
     private LocalDate parseDate(String text) {
         try { return LocalDate.parse(text.trim(), D_FMT); } catch (DateTimeParseException e) { return null; }
+    }
+
+    private void sendHelp(long chatId, MonetkaBot bot) {
+        String msg =
+                "❓ *Как пользоваться Monetka*\n\n" +
+                        "💸 *Расход* — записать трату\n" +
+                        "_Или просто напиши: шаурма 300_\n\n" +
+                        "💰 *Доход* — записать поступление денег\n" +
+                        "_Это запускает цикл до зарплаты_\n\n" +
+                        "📊 *Обзор* — все расходы месяца по категориям, прогноз\n\n" +
+                        "🎯 *Лимиты* — установи максимум для категории\n" +
+                        "_Бот предупредит когда будешь близко_\n\n" +
+                        "✏️ *Редактирование* — открой категорию в Обзоре\n" +
+                        "_Можно изменить сумму, описание или удалить трату_\n\n" +
+                        "📅 *Отчёты* — автоматически каждый день в 23:55,\n" +
+                        "_понедельник 10:00 и 1-го числа_\n\n" +
+                        "/stats — подробная статистика\n" +
+                        "/balance — текущий баланс\n" +
+                        "/день — статус цикла до зарплаты";
+        bot.sendMessage(chatId, msg, KeyboardFactory.mainMenu());
     }
 
     private String fmt(BigDecimal amount) { return String.format("%,.0f сом", amount); }

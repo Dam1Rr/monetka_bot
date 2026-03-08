@@ -160,7 +160,7 @@ public class PaydayService {
                         .append("/\u0434\u0435\u043d\u044c*,  \u043f\u043b\u0430\u043d: *").append(fmt(s.dailyBudget)).append("/\u0434\u0435\u043d\u044c*\n");
                 if (deficit.compareTo(BigDecimal.ZERO) > 0) {
                     sb.append("\u26A0\uFE0F \u0415\u0441\u043b\u0438 \u0442\u0430\u043a \u043f\u0440\u043e\u0434\u043e\u043b\u0436\u0438\u0448\u044c — \u0432 \u043a\u043e\u043d\u0446\u0435 \u043c\u0435\u0441\u044f\u0446\u0430 \u043d\u0435 \u0445\u0432\u0430\u0442\u0438\u0442 *")
-                            .append(fmt(deficit)).append("* \u0441\u043e\u043c\n");
+                            .append(fmt(deficit)).append("*\n");
                 }
             }
 

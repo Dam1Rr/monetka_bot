@@ -234,7 +234,8 @@ public class AdminHandler {
             }
             sb.append(" `").append(u.getTelegramId()).append("`\n");
         }
-        bot.sendMessage(chatId, sb.toString(), AdminKeyboardFactory.backToMenu());
+        bot.sendMarkdown(chatId, sb.toString());
+        bot.sendMessage(chatId, "⬆️ Список выше", AdminKeyboardFactory.backToMenu());
     }
 
     // ================================================================

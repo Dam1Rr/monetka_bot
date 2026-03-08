@@ -99,9 +99,27 @@ public class OverviewHandler {
         sb.append("_\u041f\u0440\u043e\u0448\u043b\u043e ").append(daysPassed)
                 .append(" \u0434\u043d., \u043e\u0441\u0442\u0430\u043b\u043e\u0441\u044c ").append(daysLeft).append("_\n\n");
 
+        // Today's spending
+        LocalDateTime todayStart = now.atStartOfDay();
+        LocalDateTime todayEnd   = now.plusDays(1).atStartOfDay();
+        BigDecimal todayExp = safe(statisticsService.getMonthExpensesForPeriod(user, todayStart, todayEnd));
+        BigDecimal todayInc = safe(statisticsService.getMonthIncomeForPeriod(user, todayStart, todayEnd));
+
         if (income.compareTo(BigDecimal.ZERO) > 0)
             sb.append("\uD83D\uDCB0 \u0414\u043e\u0445\u043e\u0434\u044b:   *+").append(fmt(income)).append("*\n");
         sb.append("\uD83D\uDCB8 \u0420\u0430\u0441\u0445\u043e\u0434\u044b:  *\u2212").append(fmt(expenses)).append("*\n");
+
+        // Today line — only show if there's activity today
+        if (todayExp.compareTo(java.math.BigDecimal.ZERO) > 0 || todayInc.compareTo(java.math.BigDecimal.ZERO) > 0) {
+            sb.append("\uD83D\uDCC6 \u0421\u0435\u0433\u043e\u0434\u043d\u044f:    ");
+            if (todayInc.compareTo(java.math.BigDecimal.ZERO) > 0)
+                sb.append("*+").append(fmt(todayInc)).append("*");
+            if (todayExp.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                if (todayInc.compareTo(java.math.BigDecimal.ZERO) > 0) sb.append("  ");
+                sb.append("*\u2212").append(fmt(todayExp)).append("*");
+            }
+            sb.append("\n");
+        }
         sb.append(diff.compareTo(BigDecimal.ZERO) >= 0 ? "\u2705" : "\u26A0\uFE0F");
         sb.append(" \u0411\u0430\u043b\u0430\u043d\u0441:   *").append(fmt(diff)).append("*\n");
 
@@ -304,12 +322,21 @@ public class OverviewHandler {
         List<BudgetGoal> goals  = budgetService.getGoals(user);
         List<Category>   allCats = categoryRepository.findAllByIsDefaultFalseOrderByName();
 
-        StringBuilder sb = new StringBuilder("\uD83C\uDFAF *\u041C\u043E\u0438 \u0446\u0435\u043B\u0438 \u043D\u0430 \u043C\u0435\u0441\u044F\u0446*\n\n");
+        // Rotating tips
+        String[] tips = {
+                "Люди с бюджетом по категориям тратят на 20% меньше. Просто потому что видят куда уходят деньги.",
+                "Лимит — это не ограничение. Это разрешение тратить без чувства вины.",
+                "Поставь лимит один раз — и бот сам напомнит когда пора остановиться.",
+                "Без лимитов деньги уходят незаметно. С лимитами — ты сам решаешь куда.",
+                "Месяц с лимитами и месяц без — разница в кошельке будет видна сразу."
+        };
+        String tip = tips[(int)(System.currentTimeMillis() / 60000 % tips.length)];
+
+        StringBuilder sb = new StringBuilder("🎯 *Лимиты на месяц*\n\n");
+        sb.append("_").append(tip).append("_\n\n");
 
         if (goals.isEmpty()) {
-            sb.append("_\u0426\u0435\u043b\u0435\u0439 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442._\n\n");
-            sb.append("\u0426\u0435\u043b\u044c \u2014 \u044d\u0442\u043e \u043c\u0430\u043a\u0441\u0438\u043c\u0430\u043b\u044c\u043d\u044b\u0439 \u0431\u044e\u0434\u0436\u0435\u0442 \u043d\u0430 \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044e.\n");
-            sb.append("\u0411\u043e\u0442 \u043d\u0430\u043f\u043e\u043c\u043d\u0438\u0442 \u043a\u043e\u0433\u0434\u0430 \u0431\u0443\u0434\u0435\u0448\u044c \u0431\u043b\u0438\u0437\u043a\u043e \u043a \u043b\u0438\u043c\u0438\u0442\u0443 \uD83D\uDCA1\n");
+            sb.append("Лимитов пока нет.\nВыбери категорию чтобы установить максимум:\n");
         } else {
             LocalDate now   = LocalDate.now(BISHKEK);
             LocalDateTime from = now.withDayOfMonth(1).atStartOfDay();
