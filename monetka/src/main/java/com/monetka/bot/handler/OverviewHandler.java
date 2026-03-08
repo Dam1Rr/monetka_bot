@@ -102,9 +102,8 @@ public class OverviewHandler {
         if (income.compareTo(BigDecimal.ZERO) > 0)
             sb.append("\uD83D\uDCB0 \u0414\u043e\u0445\u043e\u0434\u044b:   *+").append(fmt(income)).append("*\n");
         sb.append("\uD83D\uDCB8 \u0420\u0430\u0441\u0445\u043e\u0434\u044b:  *\u2212").append(fmt(expenses)).append("*\n");
-        String balSign = diff.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "";
         sb.append(diff.compareTo(BigDecimal.ZERO) >= 0 ? "\u2705" : "\u26A0\uFE0F");
-        sb.append(" \u0411\u0430\u043b\u0430\u043d\u0441:   *").append(balSign).append(fmt(diff)).append("*\n");
+        sb.append(" \u0411\u0430\u043b\u0430\u043d\u0441:   *").append(fmt(diff)).append("*\n");
 
         if (!cats.isEmpty()) {
             sb.append("\n*\u0422\u043e\u043f \u0440\u0430\u0441\u0445\u043e\u0434\u043e\u0432:*\n");

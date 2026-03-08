@@ -145,30 +145,27 @@ public class PaydayService {
 
             int cmp = s.actualDaily.compareTo(s.dailyBudget);
             if (cmp <= 0) {
-                // On track or ahead
-                BigDecimal saved = s.totalIncome.subtract(s.forecast);
-                if (saved.compareTo(BigDecimal.ZERO) > 0) {
-                    sb.append("\u2705 *\u041e\u0442\u043b\u0438\u0447\u043d\u044b\u0439 \u0442\u0435\u043c\u043f!*\n");
-                    sb.append("\uD83C\uDFAF \u041f\u0440\u0438 \u0442\u0430\u043a\u043e\u043c \u0442\u0435\u043c\u043f\u0435 \u0441\u0431\u0435\u0440\u0435\u0436\u0451\u0448\u044c *");
-                    sb.append(fmt(saved)).append("*\n");
-                } else {
-                    sb.append("\u2705 *\u0422\u0440\u0430\u0442\u0438\u0448\u044c \u0432 \u043f\u043b\u0430\u043d\u0435*\n");
+                // On track
+                BigDecimal willSave = s.totalIncome.subtract(s.forecast);
+                sb.append("\u2705 *\u041e\u0442\u043b\u0438\u0447\u043d\u044b\u0439 \u0442\u0435\u043c\u043f!*\n");
+                if (willSave.compareTo(BigDecimal.ZERO) > 0) {
+                    sb.append("\uD83C\uDFAF \u0421\u0431\u0435\u0440\u0435\u0436\u0451\u0448\u044c *")
+                            .append(fmt(willSave)).append("* \u043a \u043a\u043e\u043d\u0446\u0443 \u043c\u0435\u0441\u044f\u0446\u0430\n");
                 }
             } else {
-                // Over budget
-                BigDecimal overPerDay = s.actualDaily.subtract(s.dailyBudget);
-                BigDecimal deficit    = s.forecast.subtract(s.totalIncome);
-                sb.append("\uD83D\uDFE1 *\u041e\u043f\u0435\u0440\u0435\u0436\u0430\u0435\u0448\u044c \u043f\u043b\u0430\u043d*\n");
-                sb.append("\u041f\u0435\u0440\u0435\u0440\u0430\u0441\u0445\u043e\u0434 +").append(fmt(overPerDay)).append("/\u0434\u0435\u043d\u044c\n");
+                // Over budget — simple human language
+                BigDecimal deficit = s.forecast.subtract(s.totalIncome);
+                sb.append("\uD83D\uDFE1 *\u0422\u0440\u0430\u0442\u0438\u0448\u044c \u0447\u0443\u0442\u044c \u0431\u043e\u043b\u044c\u0448\u0435 \u043f\u043b\u0430\u043d\u0430*\n");
+                sb.append("\uD83D\uDCCA \u0421\u0435\u0439\u0447\u0430\u0441: *").append(fmt(s.actualDaily))
+                        .append("/\u0434\u0435\u043d\u044c*,  \u043f\u043b\u0430\u043d: *").append(fmt(s.dailyBudget)).append("/\u0434\u0435\u043d\u044c*\n");
                 if (deficit.compareTo(BigDecimal.ZERO) > 0) {
-                    sb.append("\u26A0\uFE0F \u041f\u0440\u043e\u0433\u043d\u043e\u0437: \u043d\u0435 \u0445\u0432\u0430\u0442\u0438\u0442 *")
-                            .append(fmt(deficit)).append("*\n");
+                    sb.append("\u26A0\uFE0F \u0415\u0441\u043b\u0438 \u0442\u0430\u043a \u043f\u0440\u043e\u0434\u043e\u043b\u0436\u0438\u0448\u044c — \u0432 \u043a\u043e\u043d\u0446\u0435 \u043c\u0435\u0441\u044f\u0446\u0430 \u043d\u0435 \u0445\u0432\u0430\u0442\u0438\u0442 *")
+                            .append(fmt(deficit)).append("* \u0441\u043e\u043c\n");
                 }
             }
 
-            // Forecast line
-            sb.append("\n\uD83D\uDD2E \u041f\u0440\u043e\u0433\u043d\u043e\u0437 \u0434\u043e ");
-            sb.append(s.endOfMonth.getDayOfMonth()).append(" \u0447\u0438\u0441\u043b\u0430: *\u2212");
+            // Forecast line — show what will be SPENT, not the deficit
+            sb.append("\n\uD83D\uDD2E \u041a \u043a\u043e\u043d\u0446\u0443 \u043c\u0435\u0441\u044f\u0446\u0430 \u043f\u043e\u0442\u0440\u0430\u0442\u0438\u0448\u044c \u043f\u0440\u0438\u043c\u0435\u0440\u043d\u043e *");
             sb.append(fmt(s.forecast)).append("*");
 
             return sb.toString();

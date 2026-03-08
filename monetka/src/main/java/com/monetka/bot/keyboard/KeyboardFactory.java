@@ -27,8 +27,10 @@ public final class KeyboardFactory {
         r1.add("💰 Доход");
         KeyboardRow r2 = new KeyboardRow();
         r2.add("📊 Обзор");
-        r2.add("🎯 Цели");
-        kb.setKeyboard(List.of(r1, r2));
+        r2.add("🎯 Лимиты");
+        KeyboardRow r3 = new KeyboardRow();
+        r3.add("❓ Помощь");
+        kb.setKeyboard(List.of(r1, r2, r3));
         return kb;
     }
 
@@ -171,8 +173,7 @@ public final class KeyboardFactory {
     public static InlineKeyboardMarkup backToCategory(long categoryId) {
         return InlineKeyboardMarkup.builder()
                 .keyboardRow(List.of(
-                        btn("← Назад", "overview:cat:" + categoryId),
-                        btn("← Назад", "overview:main")
+                        btn("← Назад", "overview:cat:" + categoryId)
                 ))
                 .build();
     }
