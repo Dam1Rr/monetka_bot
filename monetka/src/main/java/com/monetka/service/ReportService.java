@@ -272,7 +272,7 @@ public class ReportService {
 
         // Средний день и пиковый день
         List<Transaction> txs = transactionRepository.findByUserAndTypeAndPeriod(
-                user, com.monetka.model.TransactionType.EXPENSE, from, to);
+                user, TransactionType.EXPENSE, from, to);
 
         BigDecimal dailyAvg = BigDecimal.ZERO;
         String peakDayStr   = null;
