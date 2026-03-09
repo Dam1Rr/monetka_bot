@@ -144,9 +144,6 @@ public class OverviewHandler {
             sb.append("\n_\u0420\u0430\u0441\u0445\u043e\u0434\u043e\u0432 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442 \uD83C\uDF31_");
         }
 
-        // Append payday smart analysis if cycle active
-        paydayService.getSmartAnalysis(user).ifPresent(sb::append);
-
         bot.sendMessage(chatId, sb.toString(), KeyboardFactory.overviewMain(cats, categoryRepository));
     }
 

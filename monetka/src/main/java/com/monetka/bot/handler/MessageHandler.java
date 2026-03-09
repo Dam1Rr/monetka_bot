@@ -31,7 +31,6 @@ public class MessageHandler {
     private static final String CANCEL_BUTTON = "❌ Отменить действие";
     private static final DateTimeFormatter D_FMT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
     private static final Random RND = new Random();
-    private final StatisticsService statisticsService;
 
     private final UserService              userService;
     private final UserStateService         stateService;
@@ -41,6 +40,7 @@ public class MessageHandler {
     private final FinancialTipsService     tipsService;
     private final CategoryDetectionService detectionService;
 
+    private final StatisticsService       statisticsService;
     private final OverviewHandler  overviewHandler;
     private final BudgetService    budgetService;
     private final PaydayService    paydayService;
@@ -55,19 +55,18 @@ public class MessageHandler {
                           BudgetService budgetService,
                           PaydayService paydayService,
                           InsightEngine insightEngine) {
-
-        this.statisticsService = statisticsService;
-        this.userService = userService;
-        this.stateService = stateService;
-        this.transactionService = transactionService;
+        this.userService         = userService;
+        this.stateService        = stateService;
+        this.transactionService  = transactionService;
         this.subscriptionService = subscriptionService;
-        this.reportService = reportService;
-        this.tipsService = tipsService;
-        this.detectionService = detectionService;
-        this.overviewHandler = overviewHandler;
-        this.budgetService = budgetService;
-        this.paydayService = paydayService;
-        this.insightEngine = insightEngine;
+        this.reportService       = reportService;
+        this.tipsService         = tipsService;
+        this.detectionService    = detectionService;
+        this.statisticsService   = statisticsService;
+        this.overviewHandler     = overviewHandler;
+        this.budgetService       = budgetService;
+        this.paydayService       = paydayService;
+        this.insightEngine       = insightEngine;
     }
 
     public void handle(Message message, MonetkaBot bot) {
@@ -114,9 +113,12 @@ public class MessageHandler {
         switch (text) {
             case "💸 Расход"  -> startExpense(chatId, telegramId, bot);
             case "💰 Доход"   -> startIncome(chatId, telegramId, bot);
-            case "📅 Сегодня" -> bot.sendMessage(chatId, reportService.buildTodayStats(user), KeyboardFactory.periodPicker());
-            case "📆 Неделя"  -> bot.sendMessage(chatId, reportService.buildWeekStats(user),  KeyboardFactory.periodPicker());
-            case "🗓 Месяц"   -> { overviewHandler.showMain(user, chatId, bot); }
+            case "📅 Сегодня" -> bot.sendMarkdown(chatId, reportService.buildTodayStats(user), KeyboardFactory.periodPicker());
+            case "📆 Неделя"  -> bot.sendMarkdown(chatId, reportService.buildWeekStats(user),  KeyboardFactory.periodPicker());
+            case "🗓 Месяц"   -> {
+                String monthText = reportService.buildMonthStats(user);
+                bot.sendMarkdown(chatId, monthText, KeyboardFactory.periodPicker());
+            }
             case "🎯 Лимиты"  -> overviewHandler.showGoals(user, chatId, bot);
             case "📊 Обзор"   -> overviewHandler.showMain(user, chatId, bot);
             case "❓ Помощь"   -> sendHelp(chatId, bot);
@@ -166,14 +168,25 @@ public class MessageHandler {
         stateService.putData(telegramId, "expense_desc",   p.description);
         stateService.putData(telegramId, "expense_amount", p.amount.toPlainString());
 
-        // BUG FIX: use shouldAutoSave() — learned keywords always auto-save
-        //          even if mapped to default "Прочее" category
+        // use shouldAutoSave() — learned keywords always auto-save
         if (detection.shouldAutoSave()) {
             saveExpense(user, p, detection, chatId, telegramId, bot);
+        } else if (detection.getCategory() != null) {
+
+            stateService.setState(telegramId, UserState.WAITING_CATEGORY_CHOICE);
+
+            long catId = detection.getCategory().getId();
+            Long subId = detection.getSubcategory() != null ? detection.getSubcategory().getId() : null;
+
+            String label = detection.display();
+
+            bot.sendMessage(chatId,
+                    "🤔 *" + p.description + "*\n\nВозможно ты имел в виду " + label + "?",
+                    KeyboardFactory.suggestCategory(label, catId, subId));
         } else {
             stateService.setState(telegramId, UserState.WAITING_CATEGORY_CHOICE);
             bot.sendMessage(chatId,
-                    "🤔 Хм, не знаю куда отнести *" + p.description + "*\n\nВыбери категорию — запомню на будущее:",
+                    "🤔 Не знаю куда отнести *" + p.description + "*\n\nВыбери категорию — запомню:",
                     KeyboardFactory.categoryChoice(detectionService.getAllCategories()));
         }
     }
