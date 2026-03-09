@@ -13,6 +13,7 @@ import com.monetka.repository.CategoryRepository;
 import com.monetka.repository.SubcategoryRepository;
 import com.monetka.repository.TransactionRepository;
 import com.monetka.service.*;
+import com.monetka.service.ReportService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -233,14 +234,94 @@ public class CallbackHandler {
     // ================================================================
 
     private void handleStats(User user, String data, long chatId, MonetkaBot bot) {
-        String period = data.split(":")[1];
-        String report = switch (period) {
+        // data examples: stats:today  stats:week  stats:month  stats:cal
+        //                stats:cal:prev:2026:3   stats:cal:next:2026:3
+        //                stats:cal:day:2026:3:8   stats:cal:confirm:2026:3:5:8
+        String[] parts = data.split(":");
+        String sub = parts[1]; // today / week / month / cal
+
+        if (sub.equals("cal")) {
+            handleStatsCalendar(user, parts, chatId, bot);
+            return;
+        }
+
+        String report = switch (sub) {
             case "today" -> reportService.buildTodayStats(user);
             case "week"  -> reportService.buildWeekStats(user);
             case "month" -> reportService.buildMonthStats(user);
             default      -> "Неизвестный период";
         };
-        bot.sendMessage(chatId, report, KeyboardFactory.statsPeriod());
+        bot.sendMessage(chatId, report, KeyboardFactory.periodPicker());
+    }
+
+    private void handleStatsCalendar(User user, String[] parts, long chatId, MonetkaBot bot) {
+        // parts[0]=stats, parts[1]=cal, parts[2]=sub-action...
+        java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Bishkek"));
+        int year  = today.getYear();
+        int month = today.getMonthValue();
+
+        if (parts.length < 3) {
+            // First open — show current month, no selection
+            bot.sendMessage(chatId,
+                    "\uD83D\uDDD3 *Выбери период*\n\n_Тап на день — начало, второй тап — конец:_",
+                    KeyboardFactory.calendarMonth(year, month, null, null));
+            return;
+        }
+
+        String action = parts[2]; // prev / next / day / confirm
+
+        if (action.equals("prev") || action.equals("next")) {
+            year  = Integer.parseInt(parts[3]);
+            month = Integer.parseInt(parts[4]);
+            if (action.equals("next")) { month++; if (month > 12) { month = 1; year++; } }
+            else                       { month--; if (month < 1)  { month = 12; year--; } }
+            bot.sendMessage(chatId,
+                    "\uD83D\uDDD3 *Выбери период*\n\n_Тап на день — начало, второй тап — конец:_",
+                    KeyboardFactory.calendarMonth(year, month, null, null));
+            return;
+        }
+
+        if (action.equals("day")) {
+            year  = Integer.parseInt(parts[3]);
+            month = Integer.parseInt(parts[4]);
+            int day = Integer.parseInt(parts[5]);
+            String stored = stateService.getData(user.getTelegramId(), "cal_start");
+            String storedEnd = stateService.getData(user.getTelegramId(), "cal_end");
+            if (stored == null || (storedEnd != null && !storedEnd.isBlank())) {
+                stateService.putData(user.getTelegramId(), "cal_start", year + ":" + month + ":" + day);
+                stateService.putData(user.getTelegramId(), "cal_end", "");
+                bot.sendMessage(chatId,
+                        "\uD83D\uDDD3 *Выбери период*\n\n_Теперь выбери конец периода:_",
+                        KeyboardFactory.calendarMonth(year, month, day, null));
+            } else {
+                String[] sp = stored.split(":");
+                int startDay = Integer.parseInt(sp[2]);
+                int endDay = day;
+                if (endDay < startDay) { int t = startDay; startDay = endDay; endDay = t; }
+                stateService.putData(user.getTelegramId(), "cal_end", year + ":" + month + ":" + endDay);
+                bot.sendMessage(chatId,
+                        "\uD83D\uDDD3 *Выбери период*\n\n_Нажми ✅ чтобы подтвердить:_",
+                        KeyboardFactory.calendarMonth(year, month, startDay, endDay));
+            }
+            return;
+        }
+
+        if (action.equals("confirm")) {
+            year  = Integer.parseInt(parts[3]);
+            month = Integer.parseInt(parts[4]);
+            int start = Integer.parseInt(parts[5]);
+            int end   = Integer.parseInt(parts[6]);
+            stateService.putData(user.getTelegramId(), "cal_start", "");
+            stateService.putData(user.getTelegramId(), "cal_end", "");
+
+            java.time.LocalDateTime from = java.time.LocalDate.of(year, month, start).atStartOfDay();
+            java.time.LocalDateTime to   = java.time.LocalDate.of(year, month, end).plusDays(1).atStartOfDay();
+            java.time.Month m = java.time.Month.of(month);
+            String label = start + "–" + end + " " +
+                    m.getDisplayName(java.time.format.TextStyle.FULL_STANDALONE, new java.util.Locale("ru"));
+            String report = reportService.buildRangeStats(user, from, to, label);
+            bot.sendMessage(chatId, report, KeyboardFactory.periodPicker());
+        }
     }
 
     // ================================================================

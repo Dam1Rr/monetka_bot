@@ -22,13 +22,9 @@ public final class KeyboardFactory {
     public static ReplyKeyboardMarkup mainMenu() {
         ReplyKeyboardMarkup kb = new ReplyKeyboardMarkup();
         kb.setResizeKeyboard(true);
-        KeyboardRow r1 = new KeyboardRow();
-        r1.add("💸 Расход");
-        r1.add("💰 Доход");
-        KeyboardRow r2 = new KeyboardRow();
-        r2.add("📊 Обзор");
-        KeyboardRow r3 = new KeyboardRow();
-        r3.add("❓ Помощь");
+        KeyboardRow r1 = new KeyboardRow(); r1.add("💸 Расход"); r1.add("💰 Доход");
+        KeyboardRow r2 = new KeyboardRow(); r2.add("📅 Сегодня"); r2.add("📆 Неделя");
+        KeyboardRow r3 = new KeyboardRow(); r3.add("🗓 Месяц");   r3.add("🎯 Лимиты");
         kb.setKeyboard(List.of(r1, r2, r3));
         return kb;
     }
@@ -37,84 +33,57 @@ public final class KeyboardFactory {
     // Overview — tab navbar (inline, always shown under overview msgs)
     // ================================================================
 
-    public static InlineKeyboardMarkup navTabs(String active) {
-        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-        rows.add(List.of(
-                tabBtn("📅 Сегодня", "overview:tab:today",  active.equals("today")),
-                tabBtn("📆 Неделя",  "overview:tab:week",   active.equals("week")),
-                tabBtn("🗓 Месяц",   "overview:tab:month",  active.equals("month")),
-                tabBtn("📊 Период",  "overview:tab:period", active.equals("period")),
-                tabBtn("🎯 Лимиты", "overview:tab:limits", active.equals("limits"))
-        ));
-        return InlineKeyboardMarkup.builder().keyboard(rows).build();
-    }
-
-    private static InlineKeyboardButton tabBtn(String text, String data, boolean active) {
-        return InlineKeyboardButton.builder()
-                .text(active ? "· " + text.replaceAll("^\\S+\\s*", "") + " ·" : text)
-                .callbackData(data)
-                .build();
-    }
-
-    // Period quick-picks + custom date
+    // ── Period picker shown under stats messages ──
     public static InlineKeyboardMarkup periodPicker() {
         return InlineKeyboardMarkup.builder()
                 .keyboardRow(List.of(
-                        btn("📅 Сегодня", "overview:period:today"),
-                        btn("📆 7 дней",  "overview:period:week"),
-                        btn("🗓 Месяц",   "overview:period:month")
+                        btn("📅 Сегодня", "stats:today"),
+                        btn("📆 7 дней",  "stats:week"),
+                        btn("🗓 Месяц",   "stats:month")
                 ))
-                .keyboardRow(List.of(btn("🗓 Выбрать даты...", "overview:period:cal")))
+                .keyboardRow(List.of(btn("📅 Выбрать даты...", "stats:cal")))
                 .build();
     }
 
-    // Calendar day buttons (1 row of 7)
+    // ── Calendar grid ──
     public static InlineKeyboardMarkup calendarMonth(int year, int month,
                                                      Integer startDay, Integer endDay) {
         java.time.LocalDate first = java.time.LocalDate.of(year, month, 1);
         int daysInMonth = first.lengthOfMonth();
-        int startDow = first.getDayOfWeek().getValue(); // 1=Mon
+        int startDow    = first.getDayOfWeek().getValue(); // 1=Mon
 
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-
-        // Header row
         rows.add(List.of(
-                btn("‹", "overview:cal:prev:" + year + ":" + month),
+                btn("‹", "stats:cal:prev:" + year + ":" + month),
                 btn(first.getMonth().getDisplayName(java.time.format.TextStyle.FULL_STANDALONE,
                         new java.util.Locale("ru")).toUpperCase() + " " + year, "noop"),
-                btn("›", "overview:cal:next:" + year + ":" + month)
+                btn("›", "stats:cal:next:" + year + ":" + month)
         ));
+        rows.add(List.of(btn("Пн","noop"),btn("Вт","noop"),btn("Ср","noop"),btn("Чт","noop"),
+                btn("Пт","noop"),btn("Сб","noop"),btn("Вс","noop")));
 
-        // Day-of-week headers
-        rows.add(List.of(
-                btn("Пн","noop"),btn("Вт","noop"),btn("Ср","noop"),btn("Чт","noop"),
-                btn("Пт","noop"),btn("Сб","noop"),btn("Вс","noop")
-        ));
-
-        // Day grid
         List<InlineKeyboardButton> row = new ArrayList<>();
         for (int i = 1; i < startDow; i++) row.add(btn(" ", "noop"));
-
         for (int d = 1; d <= daysInMonth; d++) {
             String label;
-            if (startDay != null && endDay != null && d >= startDay && d <= endDay) label = "•" + d + "•";
-            else if (Integer.valueOf(d).equals(startDay) || Integer.valueOf(d).equals(endDay)) label = "[" + d + "]";
+            if (Integer.valueOf(d).equals(startDay) || Integer.valueOf(d).equals(endDay))
+                label = "·" + d + "·";
+            else if (startDay != null && endDay != null && d > startDay && d < endDay)
+                label = "•" + d + "•";
             else label = String.valueOf(d);
-            row.add(btn(label, "overview:cal:day:" + year + ":" + month + ":" + d));
+            row.add(btn(label, "stats:cal:day:" + year + ":" + month + ":" + d));
             if (row.size() == 7) { rows.add(new ArrayList<>(row)); row.clear(); }
         }
         if (!row.isEmpty()) {
             while (row.size() < 7) row.add(btn(" ", "noop"));
             rows.add(row);
         }
-
-        // Confirm / cancel
         if (startDay != null && endDay != null) {
-            rows.add(List.of(btn("✅ Показать " + startDay + "–" + endDay + " " +
-                    first.getMonth().getDisplayName(java.time.format.TextStyle.SHORT_STANDALONE,
-                            new java.util.Locale("ru")), "overview:cal:confirm:" + year + ":" + month + ":" + startDay + ":" + endDay)));
+            String mon = first.getMonth().getDisplayName(
+                    java.time.format.TextStyle.SHORT_STANDALONE, new java.util.Locale("ru"));
+            rows.add(List.of(btn("✅ Показать " + startDay + "–" + endDay + " " + mon,
+                    "stats:cal:confirm:" + year + ":" + month + ":" + startDay + ":" + endDay)));
         }
-        rows.add(List.of(btn("← Назад", "overview:tab:period")));
         return InlineKeyboardMarkup.builder().keyboard(rows).build();
     }
 
@@ -332,20 +301,6 @@ public final class KeyboardFactory {
         }
         rows.add(List.of(btn("➕ Добавить подписку", "add_sub")));
         return InlineKeyboardMarkup.builder().keyboard(rows).build();
-    }
-
-    // ================================================================
-    // Statistics (legacy period picker)
-    // ================================================================
-
-    public static InlineKeyboardMarkup statsPeriod() {
-        return InlineKeyboardMarkup.builder()
-                .keyboardRow(List.of(
-                        btn("📅 Сегодня", "stats:today"),
-                        btn("📆 Неделя",  "stats:week"),
-                        btn("🗓 Месяц",   "stats:month")
-                ))
-                .build();
     }
 
 

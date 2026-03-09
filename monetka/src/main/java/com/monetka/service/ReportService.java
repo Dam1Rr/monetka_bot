@@ -1,9 +1,11 @@
 package com.monetka.service;
 
 import com.monetka.model.Subscription;
+import com.monetka.model.Transaction;
 import com.monetka.model.User;
 import com.monetka.model.enums.TransactionType;
 import com.monetka.repository.TransactionRepository;
+import com.monetka.service.StatisticsService;
 import com.monetka.service.StatisticsService.CategoryStats;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +16,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
+import java.math.RoundingMode;
 import java.util.Map;
 
 @Service
@@ -112,10 +116,63 @@ public class ReportService {
 
     @Transactional(readOnly = true)
     public String buildTodayStats(User user) {
-        LocalDate now  = LocalDate.now(BISHKEK);
+        LocalDate now = LocalDate.now(BISHKEK);
         LocalDateTime from = now.atStartOfDay();
         LocalDateTime to   = from.plusDays(1);
-        return buildDetailedStats(user, from, to, "сегодня");
+
+        BigDecimal expense = safe(transactionRepository.sumByUserAndTypeAndPeriod(user, TransactionType.EXPENSE, from, to));
+        BigDecimal income  = safe(transactionRepository.sumByUserAndTypeAndPeriod(user, TransactionType.INCOME,  from, to));
+
+        // Yesterday for comparison
+        LocalDateTime yFrom = now.minusDays(1).atStartOfDay();
+        LocalDateTime yTo   = now.atStartOfDay();
+        BigDecimal yesterday = safe(transactionRepository.sumByUserAndTypeAndPeriod(user, TransactionType.EXPENSE, yFrom, yTo));
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("\uD83D\uDCC5 *Сегодня — ").append(now.format(DateTimeFormatter.ofPattern("d MMMM", new java.util.Locale("ru")))).append("*\n\n");
+
+        if (expense.compareTo(BigDecimal.ZERO) == 0 && income.compareTo(BigDecimal.ZERO) == 0) {
+            sb.append("Транзакций пока нет 🌙");
+            return sb.toString();
+        }
+        if (income.compareTo(BigDecimal.ZERO) > 0)
+            sb.append("💰 Доходы: *+").append(fmt(income)).append("*\n");
+        if (expense.compareTo(BigDecimal.ZERO) > 0) {
+            sb.append("💸 Потрачено: *−").append(fmt(expense)).append("*\n");
+            if (yesterday.compareTo(BigDecimal.ZERO) > 0) {
+                int diff = expense.compareTo(yesterday);
+                String cmp = diff > 0 ? "больше чем вчера (" + fmt(yesterday) + ")" : diff < 0 ? "меньше чем вчера (" + fmt(yesterday) + ")" : "как вчера";
+                sb.append("📊 ").append(cmp).append("\n");
+            }
+        }
+
+        // Per-category breakdown
+        List<CategoryStats> cats = statisticsService.getDetailedExpenses(user, from, to);
+        if (!cats.isEmpty()) {
+            sb.append("\n*По категориям:*\n");
+            for (CategoryStats cat : cats) {
+                sb.append("\n").append(cat.label)
+                        .append("  *").append(fmt(cat.total)).append("*")
+                        .append("  _(").append(cat.percent).append("%)_\n");
+                for (StatisticsService.SubcategoryAmount sub : cat.subcats) {
+                    sb.append("   ├ ").append(sub.name).append(" — ").append(fmt(sub.amount)).append("\n");
+                }
+            }
+        }
+
+        // Each transaction
+        List<Transaction> txs = transactionRepository.findByUserAndTypeAndPeriod(user, TransactionType.EXPENSE, from, to);
+        if (!txs.isEmpty()) {
+            sb.append("\n*Каждая трата:*\n");
+            DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm");
+            for (Transaction tx : txs) {
+                String catLabel = tx.getCategory() != null ? tx.getCategory().getDisplayName() : "—";
+                sb.append("▸ ").append(tx.getDescription())
+                        .append("  −").append(fmt(tx.getAmount()))
+                        .append("  · ").append(tx.getCreatedAt().atZone(BISHKEK).format(timeFmt)).append("\n");
+            }
+        }
+        return sb.toString();
     }
 
     // ================================================================
@@ -127,7 +184,65 @@ public class ReportService {
         LocalDate now  = LocalDate.now(BISHKEK);
         LocalDateTime from = now.minusDays(6).atStartOfDay();
         LocalDateTime to   = now.plusDays(1).atStartOfDay();
-        return buildDetailedStats(user, from, to, "последние 7 дней");
+
+        BigDecimal total = safe(transactionRepository.sumByUserAndTypeAndPeriod(user, TransactionType.EXPENSE, from, to));
+        List<CategoryStats> cats = statisticsService.getDetailedExpenses(user, from, to);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("\uD83D\uDCC6 *Неделя — ")
+                .append(now.minusDays(6).format(DateTimeFormatter.ofPattern("d MMM", new java.util.Locale("ru"))))
+                .append("–")
+                .append(now.format(DateTimeFormatter.ofPattern("d MMM", new java.util.Locale("ru"))))
+                .append("*\n\n");
+
+        if (total.compareTo(BigDecimal.ZERO) == 0) {
+            sb.append("Расходов за неделю нет 🌱");
+            return sb.toString();
+        }
+
+        long days = 7;
+        BigDecimal avg = total.divide(java.math.BigDecimal.valueOf(days), 0, java.math.RoundingMode.HALF_UP);
+        sb.append("💸 Потрачено: *−").append(fmt(total)).append("*\n");
+        sb.append("📊 В среднем: *").append(fmt(avg)).append("/день*\n");
+
+        if (!cats.isEmpty()) {
+            sb.append("\n*Топ категорий:*\n");
+            int show = Math.min(cats.size(), 5);
+            for (int i = 0; i < show; i++) {
+                CategoryStats c = cats.get(i);
+                sb.append("\n").append(i + 1).append(". ").append(c.label)
+                        .append("  *").append(fmt(c.total)).append("*")
+                        .append("  _(").append(c.percent).append("%)_\n");
+                for (StatisticsService.SubcategoryAmount sub : c.subcats) {
+                    sb.append("   ├ ").append(sub.name).append(" — ").append(fmt(sub.amount)).append("\n");
+                }
+            }
+        }
+
+        // Day-by-day activity bar
+        sb.append("\n*Активность по дням:*\n");
+        String[] dayNames = {"Пн","Вт","Ср","Чт","Пт","Сб","Вс"};
+        BigDecimal maxDay = BigDecimal.ONE;
+        List<BigDecimal> dayTotals = new java.util.ArrayList<>();
+        for (int i = 6; i >= 0; i--) {
+            LocalDate d = now.minusDays(i);
+            BigDecimal dayAmt = safe(transactionRepository.sumByUserAndTypeAndPeriod(
+                    user, TransactionType.EXPENSE, d.atStartOfDay(), d.plusDays(1).atStartOfDay()));
+            dayTotals.add(dayAmt);
+            if (dayAmt.compareTo(maxDay) > 0) maxDay = dayAmt;
+        }
+        for (int i = 0; i < 7; i++) {
+            LocalDate d = now.minusDays(6 - i);
+            BigDecimal amt = dayTotals.get(i);
+            int barLen = maxDay.compareTo(BigDecimal.ZERO) > 0
+                    ? amt.multiply(java.math.BigDecimal.valueOf(8)).divide(maxDay, 0, java.math.RoundingMode.HALF_UP).intValue()
+                    : 0;
+            String bar = "█".repeat(barLen) + "░".repeat(8 - barLen);
+            String dn = dayNames[d.getDayOfWeek().getValue() - 1];
+            sb.append(dn).append("  ").append(bar).append("  ")
+                    .append(amt.compareTo(BigDecimal.ZERO) > 0 ? fmt(amt) : "—").append("\n");
+        }
+        return sb.toString();
     }
 
     // ================================================================

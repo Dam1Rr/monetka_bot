@@ -108,9 +108,13 @@ public class MessageHandler {
         }
 
         switch (text) {
-            case "💸 Расход" -> startExpense(chatId, telegramId, bot);
-            case "💰 Доход"  -> startIncome(chatId, telegramId, bot);
-            case "📊 Обзор"  -> overviewHandler.showMain(user, chatId, bot);
+            case "💸 Расход"  -> startExpense(chatId, telegramId, bot);
+            case "💰 Доход"   -> startIncome(chatId, telegramId, bot);
+            case "📅 Сегодня" -> bot.sendMessage(chatId, reportService.buildTodayStats(user), KeyboardFactory.periodPicker());
+            case "📆 Неделя"  -> bot.sendMessage(chatId, reportService.buildWeekStats(user),  KeyboardFactory.periodPicker());
+            case "🗓 Месяц"   -> { overviewHandler.showMain(user, chatId, bot); }
+            case "🎯 Лимиты"  -> overviewHandler.showGoals(user, chatId, bot);
+            case "📊 Обзор"   -> overviewHandler.showMain(user, chatId, bot);
             case "❓ Помощь"   -> sendHelp(chatId, bot);
             default -> {
                 // Если во время онбординга пользователь пишет расход — обрабатываем сразу
@@ -187,12 +191,22 @@ public class MessageHandler {
         // Pace hint — one line showing cycle status
         String paceHint = paydayService.getPaceHint(user).map(h -> "\n" + h).orElse("");
 
+        // Today's total after this expense
+        java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Bishkek"));
+        java.time.LocalDateTime tFrom = today.atStartOfDay();
+        java.time.LocalDateTime tTo   = today.plusDays(1).atStartOfDay();
+        java.math.BigDecimal todayTotal = statisticsService.getMonthExpensesForPeriod(user, tFrom, tTo);
+        String todayLine = todayTotal != null && todayTotal.compareTo(java.math.BigDecimal.ZERO) > 0
+                ? "\n📊 Сегодня потрачено: *" + fmt(todayTotal) + "*"
+                : "";
+
         bot.sendMessage(chatId,
                 reaction + " *Записал!*\n\n" +
                         "📝 " + p.description + "\n" +
                         "💸 −" + fmt(p.amount) + "\n" +
                         "🏷 " + cat + confNote + learnedNote + "\n" +
-                        "💳 Баланс: *" + fmt(user.getBalance()) + "*" + paceHint,
+                        "💳 Баланс: *" + fmt(user.getBalance()) + "*" +
+                        todayLine + paceHint,
                 KeyboardFactory.mainMenu());
 
         // Budget goal alert — send after main confirmation if threshold crossed
