@@ -31,6 +31,7 @@ public class MessageHandler {
     private static final String CANCEL_BUTTON = "❌ Отменить действие";
     private static final DateTimeFormatter D_FMT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
     private static final Random RND = new Random();
+    private final StatisticsService statisticsService;
 
     private final UserService              userService;
     private final UserStateService         stateService;
@@ -49,21 +50,24 @@ public class MessageHandler {
                           TransactionService transactionService, SubscriptionService subscriptionService,
                           ReportService reportService, FinancialTipsService tipsService,
                           CategoryDetectionService detectionService,
+                          StatisticsService statisticsService,
                           OverviewHandler overviewHandler,
                           BudgetService budgetService,
                           PaydayService paydayService,
                           InsightEngine insightEngine) {
-        this.userService         = userService;
-        this.stateService        = stateService;
-        this.transactionService  = transactionService;
+
+        this.statisticsService = statisticsService;
+        this.userService = userService;
+        this.stateService = stateService;
+        this.transactionService = transactionService;
         this.subscriptionService = subscriptionService;
-        this.reportService       = reportService;
-        this.tipsService         = tipsService;
-        this.detectionService    = detectionService;
-        this.overviewHandler     = overviewHandler;
-        this.budgetService       = budgetService;
-        this.paydayService       = paydayService;
-        this.insightEngine       = insightEngine;
+        this.reportService = reportService;
+        this.tipsService = tipsService;
+        this.detectionService = detectionService;
+        this.overviewHandler = overviewHandler;
+        this.budgetService = budgetService;
+        this.paydayService = paydayService;
+        this.insightEngine = insightEngine;
     }
 
     public void handle(Message message, MonetkaBot bot) {
