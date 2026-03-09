@@ -169,7 +169,7 @@ public class ReportService {
                 String catLabel = tx.getCategory() != null ? tx.getCategory().getDisplayName() : "—";
                 sb.append("▸ ").append(tx.getDescription())
                         .append("  −").append(fmt(tx.getAmount()))
-                        .append("  · ").append(tx.getCreatedAt().atZone(BISHKEK).format(timeFmt)).append("\n");
+                        .append("  · ").append(tx.getCreatedAt().atZone(java.time.ZoneOffset.UTC).withZoneSameInstant(BISHKEK).format(timeFmt)).append("\n");
             }
         }
         return sb.toString();
@@ -260,32 +260,131 @@ public class ReportService {
         BigDecimal diff     = income.subtract(expenses);
         String month        = statisticsService.currentMonthName();
 
+        // Payday/pace data
+        int dayOfMonth   = now.getDayOfMonth();
+        int daysInMonth  = now.lengthOfMonth();
+        int daysLeft     = daysInMonth - dayOfMonth;
+
         StringBuilder sb = new StringBuilder();
-        sb.append("📈 *Статистика за ").append(month).append("*\n\n");
-        sb.append("💰 Доходы: *+").append(fmt(income)).append("*\n");
+        sb.append("\uD83D\uDCC8 *").append(month).append("*\n");
+        sb.append("_Прошло ").append(dayOfMonth).append(" дн. · осталось ").append(daysLeft).append(" дн._\n\n");
+
+        if (income.compareTo(BigDecimal.ZERO) > 0)
+            sb.append("💰 Доходы:  *+").append(fmt(income)).append("*\n");
         sb.append("💸 Расходы: *−").append(fmt(expenses)).append("*\n");
-        sb.append(diff.compareTo(BigDecimal.ZERO) >= 0 ? "✅" : "⚠️");
-        sb.append(" Итого: *")
-                .append(diff.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "")
-                .append(fmt(diff)).append("*\n");
 
+        if (income.compareTo(BigDecimal.ZERO) > 0) {
+            sb.append(diff.compareTo(BigDecimal.ZERO) >= 0 ? "✅" : "⚠️");
+            sb.append(" Баланс: *")
+                    .append(diff.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "")
+                    .append(fmt(diff)).append("*\n");
+        }
+
+        // Categories
+        List<CategoryStats> cats = statisticsService.getDetailedExpenses(user, from, to);
+        if (!cats.isEmpty() && expenses.compareTo(BigDecimal.ZERO) > 0) {
+            sb.append("\n*Расходы по категориям:*\n");
+            for (CategoryStats cat : cats) {
+                sb.append("\n").append(cat.label)
+                        .append(" — *").append(fmt(cat.total)).append("*")
+                        .append(" _(").append(cat.percent).append("%)_\n");
+                for (StatisticsService.SubcategoryAmount sub : cat.subcats) {
+                    sb.append("   ├ ").append(sub.name)
+                            .append(" — ").append(fmt(sub.amount)).append("\n");
+                }
+            }
+        }
+
+        // ── AI финансовый разбор ──
         if (expenses.compareTo(BigDecimal.ZERO) > 0) {
-            List<CategoryStats> cats = statisticsService.getDetailedExpenses(user, from, to);
-            if (!cats.isEmpty()) {
-                sb.append("\n*Расходы по категориям:*\n");
-                for (CategoryStats cat : cats) {
-                    sb.append("\n")
-                            .append(cat.label)
-                            .append(" — *").append(fmt(cat.total)).append("*")
-                            .append(" _(").append(cat.percent).append("%)_\n");
+            sb.append("\n").append("━".repeat(16)).append("\n");
+            sb.append("\uD83E\uDDE0 *AI разбор месяца*\n\n");
 
-                    // Подкатегории с отступом
-                    for (StatisticsService.SubcategoryAmount sub : cat.subcats) {
-                        sb.append("   ├ ").append(sub.name)
-                                .append(" — ").append(fmt(sub.amount)).append("\n");
+            // 1. Темп трат + прогноз
+            if (dayOfMonth > 0) {
+                BigDecimal dailyRate = expenses.divide(
+                        java.math.BigDecimal.valueOf(dayOfMonth), 0, RoundingMode.HALF_UP);
+                BigDecimal projected = dailyRate.multiply(java.math.BigDecimal.valueOf(daysInMonth));
+                sb.append("📊 Темп: *").append(fmt(dailyRate)).append("/день*\n");
+                sb.append("\uD83D\uDD2E Прогноз к концу месяца: *~").append(fmt(projected)).append("*\n");
+
+                if (income.compareTo(BigDecimal.ZERO) > 0) {
+                    if (projected.compareTo(income) > 0) {
+                        BigDecimal over = projected.subtract(income);
+                        sb.append("\u26A0\uFE0F _При таком темпе минус ~").append(fmt(over)).append(" — пора тормозить._\n");
+                    } else {
+                        BigDecimal saveProj = income.subtract(projected);
+                        int saveProjPct = saveProj.multiply(java.math.BigDecimal.valueOf(100))
+                                .divide(income, 0, RoundingMode.HALF_UP).intValue();
+                        sb.append("\u2705 _Прогноз: останется ~").append(fmt(saveProj))
+                                .append(" (").append(saveProjPct).append("% дохода)_\n");
                     }
                 }
-                sb.append("\n*Всего расходов: ").append(fmt(expenses)).append("*");
+            }
+
+            // 2. Разбор категорий с советами
+            if (!cats.isEmpty()) {
+                sb.append("\n*Разбор по категориям:*\n");
+                for (int i = 0; i < Math.min(cats.size(), 4); i++) {
+                    CategoryStats cat = cats.get(i);
+                    String advice = "";
+                    String catName = cat.label;
+                    if (cat.percent > 40) {
+                        if (catName.contains("Еда") || catName.contains("Кафе") || catName.contains("Доставка") || catName.contains("Фастфуд"))
+                            advice = " _→ готовь дома 3+ дней в неделю_";
+                        else if (catName.contains("Такси") || catName.contains("Транспорт"))
+                            advice = " _→ попробуй проездной_";
+                        else if (catName.contains("Развлечения") || catName.contains("Подписки"))
+                            advice = " _→ проверь, всем ли пользуешься_";
+                        else
+                            advice = " _→ главная статья месяца_";
+                    } else if (cat.percent > 25) {
+                        advice = " _→ в норме_";
+                    }
+                    sb.append("\n").append(catName)
+                            .append(" — *").append(fmt(cat.total)).append("*")
+                            .append(" (").append(cat.percent).append("%)")
+                            .append(advice).append("\n");
+                    if (!cat.subcats.isEmpty()) {
+                        StatisticsService.SubcategoryAmount topSub = cat.subcats.get(0);
+                        sb.append("   \u21B3 больше всего: ").append(topSub.name)
+                                .append(" — ").append(fmt(topSub.amount)).append("\n");
+                    }
+                }
+            }
+
+            // 3. Норма сбережений
+            if (income.compareTo(BigDecimal.ZERO) > 0) {
+                int savePct = diff.multiply(java.math.BigDecimal.valueOf(100))
+                        .divide(income, 0, RoundingMode.HALF_UP).intValue();
+                sb.append("\n*Сбережения:* ");
+                if (savePct >= 30)
+                    sb.append("*").append(savePct).append("%* \uD83C\uDFC6 _Отлично!_\n");
+                else if (savePct >= 20)
+                    sb.append("*").append(savePct).append("%* \u2705 _Хорошо, цель достигнута_\n");
+                else if (savePct >= 10)
+                    sb.append("*").append(savePct).append("%* \uD83D\uDCC8 _Норма, цель 20%+_\n");
+                else if (savePct > 0)
+                    sb.append("*").append(savePct).append("%* \u26A1 _Мало — откладывай 10% с каждого дохода_\n");
+                else
+                    sb.append("*0%* \u26A0\uFE0F _Расходы ≥ доходов — пора пересмотреть бюджет_\n");
+
+                if (diff.compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal yearSavings = diff.multiply(java.math.BigDecimal.valueOf(12));
+                    sb.append("\uD83D\uDCA1 _При таком темпе за год отложишь *").append(fmt(yearSavings)).append("*_\n");
+                }
+            }
+
+            // 4. Главный совет
+            sb.append("\n");
+            if (!cats.isEmpty() && cats.get(0).percent > 50) {
+                BigDecimal saving20 = cats.get(0).total
+                        .multiply(java.math.BigDecimal.valueOf(20))
+                        .divide(java.math.BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
+                sb.append("\uD83D\uDCCC *Совет:* сократи *").append(cats.get(0).label)
+                        .append("* на 20% — сэкономишь ~*").append(fmt(saving20)).append("* в месяц\n");
+            } else if (cats.size() >= 2) {
+                sb.append("\uD83D\uDCAC _Поставь лимиты на топ-категории — бот предупредит когда пора остановиться._\n");
             }
         }
 

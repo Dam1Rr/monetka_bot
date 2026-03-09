@@ -33,15 +33,10 @@ public final class KeyboardFactory {
     // Overview — tab navbar (inline, always shown under overview msgs)
     // ================================================================
 
-    // ── Period picker shown under stats messages ──
+    //    // ── Period picker — single clean "choose date" button ──
     public static InlineKeyboardMarkup periodPicker() {
         return InlineKeyboardMarkup.builder()
-                .keyboardRow(List.of(
-                        btn("📅 Сегодня", "stats:today"),
-                        btn("📆 7 дней",  "stats:week"),
-                        btn("🗓 Месяц",   "stats:month")
-                ))
-                .keyboardRow(List.of(btn("📅 Выбрать даты...", "stats:cal")))
+                .keyboardRow(List.of(btn("📅 Выбрать дату", "stats:cal")))
                 .build();
     }
 
@@ -247,6 +242,17 @@ public final class KeyboardFactory {
     // ================================================================
     // Category choice — manual selection
     // ================================================================
+
+    // ── "Возможно ты имел в виду?" suggestion keyboard ──
+    public static InlineKeyboardMarkup suggestCategory(String catDisplay, long catId, Long subId) {
+        String yesData = subId != null
+                ? "suggest:yes:" + catId + ":" + subId
+                : "suggest:yes:" + catId + ":0";
+        return InlineKeyboardMarkup.builder()
+                .keyboardRow(List.of(btn("✅ Да, это " + catDisplay, yesData)))
+                .keyboardRow(List.of(btn("🔄 Нет, выбрать категорию", "suggest:no")))
+                .build();
+    }
 
     public static InlineKeyboardMarkup categoryChoice(List<Category> categories) {
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
