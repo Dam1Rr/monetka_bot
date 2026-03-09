@@ -251,144 +251,228 @@ public class ReportService {
 
     @Transactional(readOnly = true)
     public String buildMonthStats(User user) {
-        LocalDate now  = LocalDate.now(BISHKEK);
-        LocalDateTime from = now.withDayOfMonth(1).atStartOfDay();
-        LocalDateTime to   = from.plusMonths(1);
+        LocalDate now       = LocalDate.now(BISHKEK);
+        LocalDateTime from  = now.withDayOfMonth(1).atStartOfDay();
+        LocalDateTime to    = from.plusMonths(1);
 
+        // Текущий месяц
         BigDecimal income   = safe(statisticsService.getMonthIncome(user));
         BigDecimal expenses = safe(statisticsService.getMonthExpenses(user));
         BigDecimal diff     = income.subtract(expenses);
-        String month        = statisticsService.currentMonthName();
+        String monthName    = statisticsService.currentMonthName();
 
-        // Payday/pace data
-        int dayOfMonth   = now.getDayOfMonth();
-        int daysInMonth  = now.lengthOfMonth();
-        int daysLeft     = daysInMonth - dayOfMonth;
+        int dayOfMonth  = now.getDayOfMonth();
+        int daysInMonth = now.lengthOfMonth();
+        int daysLeft    = daysInMonth - dayOfMonth;
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("\uD83D\uDCC8 *").append(month).append("*\n");
-        sb.append("_Прошло ").append(dayOfMonth).append(" дн. · осталось ").append(daysLeft).append(" дн._\n\n");
+        // Прошлый месяц
+        LocalDateTime prevFrom = from.minusMonths(1);
+        LocalDateTime prevTo   = from;
+        BigDecimal prevExpenses = safe(statisticsService.getMonthExpensesForPeriod(user, prevFrom, prevTo));
 
-        if (income.compareTo(BigDecimal.ZERO) > 0)
-            sb.append("💰 Доходы:  *+").append(fmt(income)).append("*\n");
-        sb.append("💸 Расходы: *−").append(fmt(expenses)).append("*\n");
+        // Средний день и пиковый день
+        List<Transaction> txs = transactionRepository.findByUserAndTypeAndPeriod(
+                user, com.monetka.model.TransactionType.EXPENSE, from, to);
 
-        if (income.compareTo(BigDecimal.ZERO) > 0) {
-            sb.append(diff.compareTo(BigDecimal.ZERO) >= 0 ? "✅" : "⚠️");
-            sb.append(" Баланс: *")
-                    .append(diff.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "")
-                    .append(fmt(diff)).append("*\n");
+        BigDecimal dailyAvg = BigDecimal.ZERO;
+        String peakDayStr   = null;
+        BigDecimal peakAmt  = BigDecimal.ZERO;
+
+        if (dayOfMonth > 0 && expenses.compareTo(BigDecimal.ZERO) > 0) {
+            dailyAvg = expenses.divide(java.math.BigDecimal.valueOf(dayOfMonth), 0, RoundingMode.HALF_UP);
         }
 
-        // Categories
+        // Считаем максимальный день
+        java.util.Map<java.time.LocalDate, BigDecimal> byDay = new java.util.HashMap<>();
+        for (Transaction tx : txs) {
+            java.time.LocalDate d = tx.getCreatedAt().atZone(java.time.ZoneOffset.UTC)
+                    .withZoneSameInstant(BISHKEK).toLocalDate();
+            byDay.merge(d, tx.getAmount(), BigDecimal::add);
+        }
+        for (java.util.Map.Entry<java.time.LocalDate, BigDecimal> e : byDay.entrySet()) {
+            if (e.getValue().compareTo(peakAmt) > 0) {
+                peakAmt = e.getValue();
+                peakDayStr = e.getKey().getDayOfMonth() + " " + monthName.toLowerCase();
+            }
+        }
+
+        // Категории
         List<CategoryStats> cats = statisticsService.getDetailedExpenses(user, from, to);
+
+        // ── Строим сообщение ──
+        StringBuilder sb = new StringBuilder();
+        sb.append("\uD83D\uDDD3 *").append(monthName).append(" ").append(now.getYear()).append("*\n");
+        sb.append("_").append(dayOfMonth).append(" дней прошло · ").append(daysLeft).append(" осталось_\n\n");
+
+        // Главные цифры
+        if (income.compareTo(BigDecimal.ZERO) > 0)
+            sb.append("\uD83D\uDCB0 Заработок:  *+").append(fmt(income)).append("*\n");
+        sb.append("\uD83D\uDCB8 Расходы:    *\u2212").append(fmt(expenses)).append("*\n");
+        if (income.compareTo(BigDecimal.ZERO) > 0) {
+            String sign = diff.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "";
+            String icon = diff.compareTo(BigDecimal.ZERO) >= 0 ? "\u2705" : "\u26A0\uFE0F";
+            sb.append(icon).append(" Осталось:   *").append(sign).append(fmt(diff)).append("*\n");
+        }
+        sb.append("\n");
+        sb.append("\uD83D\uDCCA Каждый день тратишь в среднем *").append(fmt(dailyAvg)).append("*\n");
+        if (peakDayStr != null)
+            sb.append("\uD83D\uDCC5 Самый дорогой день — ").append(peakDayStr)
+                    .append(" (*").append(fmt(peakAmt)).append("*) \uD83D\uDE2C\n");
+
+        // Категории
         if (!cats.isEmpty() && expenses.compareTo(BigDecimal.ZERO) > 0) {
-            sb.append("\n*Расходы по категориям:*\n");
+            sb.append("\n").append("\u2501".repeat(16)).append("\n");
+            sb.append("*На что ушли деньги:*\n\n");
             for (CategoryStats cat : cats) {
-                sb.append("\n").append(cat.label)
-                        .append(" — *").append(fmt(cat.total)).append("*")
-                        .append(" _(").append(cat.percent).append("%)_\n");
-                for (StatisticsService.SubcategoryAmount sub : cat.subcats) {
-                    sb.append("   ├ ").append(sub.name)
-                            .append(" — ").append(fmt(sub.amount)).append("\n");
-                }
+                sb.append(cat.label)
+                        .append("   *").append(fmt(cat.total)).append("*")
+                        .append("  (").append(cat.percent).append("%)\n");
             }
         }
 
-        // ── AI финансовый разбор ──
-        if (expenses.compareTo(BigDecimal.ZERO) > 0) {
-            sb.append("\n").append("━".repeat(16)).append("\n");
-            sb.append("\uD83E\uDDE0 *AI разбор месяца*\n\n");
+        // Сравнение с прошлым месяцем
+        sb.append("\n").append("\u2501".repeat(16)).append("\n");
+        if (prevExpenses.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal delta = prevExpenses.subtract(expenses);
+            int deltaPct = delta.abs().multiply(java.math.BigDecimal.valueOf(100))
+                    .divide(prevExpenses, 0, RoundingMode.HALF_UP).intValue();
+            String prevMonthName = now.minusMonths(1).getMonth()
+                    .getDisplayName(java.time.format.TextStyle.FULL, new java.util.Locale("ru"));
+            // Capitalize
+            prevMonthName = prevMonthName.substring(0,1).toUpperCase() + prevMonthName.substring(1);
 
-            // 1. Темп трат + прогноз
-            if (dayOfMonth > 0) {
-                BigDecimal dailyRate = expenses.divide(
-                        java.math.BigDecimal.valueOf(dayOfMonth), 0, RoundingMode.HALF_UP);
-                BigDecimal projected = dailyRate.multiply(java.math.BigDecimal.valueOf(daysInMonth));
-                sb.append("📊 Темп: *").append(fmt(dailyRate)).append("/день*\n");
-                sb.append("\uD83D\uDD2E Прогноз к концу месяца: *~").append(fmt(projected)).append("*\n");
-
-                if (income.compareTo(BigDecimal.ZERO) > 0) {
-                    if (projected.compareTo(income) > 0) {
-                        BigDecimal over = projected.subtract(income);
-                        sb.append("\u26A0\uFE0F _При таком темпе минус ~").append(fmt(over)).append(" — пора тормозить._\n");
-                    } else {
-                        BigDecimal saveProj = income.subtract(projected);
-                        int saveProjPct = saveProj.multiply(java.math.BigDecimal.valueOf(100))
-                                .divide(income, 0, RoundingMode.HALF_UP).intValue();
-                        sb.append("\u2705 _Прогноз: останется ~").append(fmt(saveProj))
-                                .append(" (").append(saveProjPct).append("% дохода)_\n");
-                    }
-                }
-            }
-
-            // 2. Разбор категорий с советами
-            if (!cats.isEmpty()) {
-                sb.append("\n*Разбор по категориям:*\n");
-                for (int i = 0; i < Math.min(cats.size(), 4); i++) {
-                    CategoryStats cat = cats.get(i);
-                    String advice = "";
-                    String catName = cat.label;
-                    if (cat.percent > 40) {
-                        if (catName.contains("Еда") || catName.contains("Кафе") || catName.contains("Доставка") || catName.contains("Фастфуд"))
-                            advice = " _→ готовь дома 3+ дней в неделю_";
-                        else if (catName.contains("Такси") || catName.contains("Транспорт"))
-                            advice = " _→ попробуй проездной_";
-                        else if (catName.contains("Развлечения") || catName.contains("Подписки"))
-                            advice = " _→ проверь, всем ли пользуешься_";
-                        else
-                            advice = " _→ главная статья месяца_";
-                    } else if (cat.percent > 25) {
-                        advice = " _→ в норме_";
-                    }
-                    sb.append("\n").append(catName)
-                            .append(" — *").append(fmt(cat.total)).append("*")
-                            .append(" (").append(cat.percent).append("%)")
-                            .append(advice).append("\n");
-                    if (!cat.subcats.isEmpty()) {
-                        StatisticsService.SubcategoryAmount topSub = cat.subcats.get(0);
-                        sb.append("   \u21B3 больше всего: ").append(topSub.name)
-                                .append(" — ").append(fmt(topSub.amount)).append("\n");
-                    }
-                }
-            }
-
-            // 3. Норма сбережений
-            if (income.compareTo(BigDecimal.ZERO) > 0) {
-                int savePct = diff.multiply(java.math.BigDecimal.valueOf(100))
-                        .divide(income, 0, RoundingMode.HALF_UP).intValue();
-                sb.append("\n*Сбережения:* ");
-                if (savePct >= 30)
-                    sb.append("*").append(savePct).append("%* \uD83C\uDFC6 _Отлично!_\n");
-                else if (savePct >= 20)
-                    sb.append("*").append(savePct).append("%* \u2705 _Хорошо, цель достигнута_\n");
-                else if (savePct >= 10)
-                    sb.append("*").append(savePct).append("%* \uD83D\uDCC8 _Норма, цель 20%+_\n");
-                else if (savePct > 0)
-                    sb.append("*").append(savePct).append("%* \u26A1 _Мало — откладывай 10% с каждого дохода_\n");
-                else
-                    sb.append("*0%* \u26A0\uFE0F _Расходы ≥ доходов — пора пересмотреть бюджет_\n");
-
-                if (diff.compareTo(BigDecimal.ZERO) > 0) {
-                    BigDecimal yearSavings = diff.multiply(java.math.BigDecimal.valueOf(12));
-                    sb.append("\uD83D\uDCA1 _При таком темпе за год отложишь *").append(fmt(yearSavings)).append("*_\n");
-                }
-            }
-
-            // 4. Главный совет
-            sb.append("\n");
-            if (!cats.isEmpty() && cats.get(0).percent > 50) {
-                BigDecimal saving20 = cats.get(0).total
-                        .multiply(java.math.BigDecimal.valueOf(20))
-                        .divide(java.math.BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
-                sb.append("\uD83D\uDCCC *Совет:* сократи *").append(cats.get(0).label)
-                        .append("* на 20% — сэкономишь ~*").append(fmt(saving20)).append("* в месяц\n");
-            } else if (cats.size() >= 2) {
-                sb.append("\uD83D\uDCAC _Поставь лимиты на топ-категории — бот предупредит когда пора остановиться._\n");
+            sb.append("\uD83D\uDCC8 В ").append(prevMonthName.toLowerCase())
+                    .append(" потратил *").append(fmt(prevExpenses)).append("*\n");
+            if (delta.compareTo(BigDecimal.ZERO) > 0) {
+                sb.append("   В ").append(monthName.toLowerCase())
+                        .append(" уже на ").append(deltaPct).append("% меньше — огонь \uD83D\uDD25\n");
+            } else {
+                int overPct = delta.abs().multiply(java.math.BigDecimal.valueOf(100))
+                        .divide(prevExpenses, 0, RoundingMode.HALF_UP).intValue();
+                sb.append("   В ").append(monthName.toLowerCase())
+                        .append(" на ").append(overPct).append("% больше \uD83D\uDE2C\n");
             }
         }
+
+        // Прогноз
+        if (dayOfMonth > 0 && expenses.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal projected = dailyAvg.multiply(java.math.BigDecimal.valueOf(daysInMonth));
+            sb.append("\n\uD83D\uDD2E Если ничего не менять —\n");
+            sb.append("   к концу месяца потратишь *~").append(fmt(projected)).append("*\n");
+        }
+
+        // ── Умный инсайт ──
+        sb.append("\n").append("\u2501".repeat(16)).append("\n");
+        sb.append("\uD83E\uDDE0 *Главное за месяц:*\n\n");
+        sb.append(buildSmartInsight(user, cats, income, expenses, diff, txs));
 
         return sb.toString();
+    }
+
+    /**
+     * Умный инсайт — 6 сценариев по приоритету, всегда с реальными цифрами
+     */
+    private String buildSmartInsight(User user,
+                                     List<CategoryStats> cats,
+                                     BigDecimal income,
+                                     BigDecimal expenses,
+                                     BigDecimal diff,
+                                     List<Transaction> txs) {
+        // 1. Расходы > доходов — самый важный сигнал
+        if (income.compareTo(BigDecimal.ZERO) > 0 && diff.compareTo(BigDecimal.ZERO) < 0) {
+            BigDecimal over = diff.abs();
+            String villain = cats.isEmpty() ? "Прочее" : cats.get(0).label;
+            return "Потратил на *" + fmt(over) + "* больше чем заработал \uD83D\uDE2C\n"
+                    + "Главный виновник — " + villain + ".\n"
+                    + "Одна неделя без него закрывает этот минус.\n";
+        }
+
+        // 2. Доставка/Глово — считаем количество и сумму
+        BigDecimal deliveryTotal = BigDecimal.ZERO;
+        int deliveryCount = 0;
+        for (Transaction tx : txs) {
+            String desc = tx.getDescription() == null ? "" : tx.getDescription().toLowerCase();
+            if (desc.contains("глово") || desc.contains("glovo") || desc.contains("доставка")
+                    || desc.contains("яндекс еда") || desc.contains("delivery")) {
+                deliveryTotal = deliveryTotal.add(tx.getAmount());
+                deliveryCount++;
+            }
+        }
+        if (deliveryCount >= 3 && deliveryTotal.compareTo(BigDecimal.valueOf(500)) > 0) {
+            BigDecimal half = deliveryTotal.divide(java.math.BigDecimal.valueOf(2), 0, RoundingMode.HALF_UP);
+            BigDecimal year = half.multiply(java.math.BigDecimal.valueOf(12));
+            return "Доставка — " + deliveryCount + " заказов на *" + fmt(deliveryTotal) + "* \uD83D\uDEF5\n"
+                    + "Курьер тебя уже по имени знает, наверное.\n\n"
+                    + "Закажи в 2 раза реже →\n"
+                    + "сэкономишь *" + fmt(half) + "* в месяц.\n"
+                    + "За год — *" + fmt(year) + "*. Это уже билет куда-нибудь ✈️\n";
+        }
+
+        // 3. Одна категория > 40% расходов
+        if (!cats.isEmpty() && cats.get(0).percent > 40) {
+            CategoryStats top = cats.get(0);
+            BigDecimal saving = top.total.multiply(java.math.BigDecimal.valueOf(20))
+                    .divide(java.math.BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
+            BigDecimal yearSaving = saving.multiply(java.math.BigDecimal.valueOf(12));
+            String advice = "";
+            if (top.label.contains("Еда") || top.label.contains("Кафе") || top.label.contains("Фастфуд"))
+                advice = "Готовь дома хотя бы 3 дня в неделю.";
+            else if (top.label.contains("Такси") || top.label.contains("Транспорт"))
+                advice = "Попробуй маршрутку 2-3 раза в неделю.";
+            else if (top.label.contains("Покупки"))
+                advice = "Составляй список перед магазином — реально помогает.";
+            else
+                advice = "Стоит посмотреть куда конкретно уходят деньги.";
+            return top.label + " забирает *" + top.percent + "%* всех расходов.\n"
+                    + advice + "\n\n"
+                    + "Срежь на 20% → *+" + fmt(saving) + "* в месяц\n"
+                    + "За год — *+" + fmt(yearSaving) + "*\n";
+        }
+
+        // 4. Категория выросла > 30% vs прошлый месяц (такси)
+        if (!cats.isEmpty()) {
+            CategoryStats top = cats.get(0);
+            // Simple check: if top category is taxi and percent is notable
+            if ((top.label.contains("Такси")) && top.percent > 20) {
+                BigDecimal saving = top.total.multiply(java.math.BigDecimal.valueOf(30))
+                        .divide(java.math.BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
+                return "На такси ушло *" + fmt(top.total) + "* за месяц \uD83D\uDE95\n"
+                        + "Это серьёзно.\n\n"
+                        + "Пересаживайся на маршрутку хотя бы раз в день →\n"
+                        + "сэкономишь *~" + fmt(saving) + "* в месяц\n";
+            }
+        }
+
+        // 5. Хороший месяц — остаток > 20% дохода
+        if (income.compareTo(BigDecimal.ZERO) > 0 && diff.compareTo(BigDecimal.ZERO) > 0) {
+            int savePct = diff.multiply(java.math.BigDecimal.valueOf(100))
+                    .divide(income, 0, RoundingMode.HALF_UP).intValue();
+            if (savePct >= 20) {
+                BigDecimal half = diff.divide(java.math.BigDecimal.valueOf(2), 0, RoundingMode.HALF_UP);
+                BigDecimal year = half.multiply(java.math.BigDecimal.valueOf(12));
+                return "Месяц идёт хорошо — остаток *" + fmt(diff) + "* \uD83D\uDCB0\n\n"
+                        + "Отложи хотя бы половину → *" + fmt(half) + "* в копилку.\n"
+                        + "Если каждый месяц так — за год *" + fmt(year) + "*.\n"
+                        + "Это уже что-то серьёзное \uD83D\uDCAA\n";
+            }
+        }
+
+        // 6. Стабильный месяц — нет аномалий
+        if (dailyAvgFromExpenses(expenses, LocalDate.now(BISHKEK).getDayOfMonth()).compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal daily = dailyAvgFromExpenses(expenses, LocalDate.now(BISHKEK).getDayOfMonth());
+            BigDecimal projected = daily.multiply(java.math.BigDecimal.valueOf(LocalDate.now(BISHKEK).lengthOfMonth()));
+            return "Ровный месяц, без резких движений \uD83D\uDFE2\n"
+                    + "Темп " + fmt(daily) + " сом/день — к концу месяца\n"
+                    + "потратишь примерно *" + fmt(projected) + "*.\n"
+                    + "Так держать \uD83D\uDC4D\n";
+        }
+
+        return "Продолжай записывать — скоро появятся умные советы \uD83E\uDDE0\n";
+    }
+
+    private BigDecimal dailyAvgFromExpenses(BigDecimal expenses, int days) {
+        if (days <= 0 || expenses.compareTo(BigDecimal.ZERO) == 0) return BigDecimal.ZERO;
+        return expenses.divide(java.math.BigDecimal.valueOf(days), 0, RoundingMode.HALF_UP);
     }
 
     // ================================================================
