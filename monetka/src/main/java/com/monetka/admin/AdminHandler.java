@@ -165,7 +165,7 @@ public class AdminHandler {
             for (int i = 0; i < s.topCategories().size(); i++) {
                 ActivityStatsService.CategoryTrend cat = s.topCategories().get(i);
                 sb.append("  ").append(i + 1).append(". ")
-                        .append(cat.label()).append(" — *").append(fmt(cat.total())).append("*")
+                        .append(escapeMarkdown(cat.label())).append(" — *").append(fmt(cat.total())).append("*")
                         .append("  (").append(cat.txCount()).append(" трат)\n");
             }
             sb.append("\n");
@@ -176,7 +176,7 @@ public class AdminHandler {
             sb.append("🏆 *Топ юзеров за неделю:*\n");
             for (int i = 0; i < s.top5().size(); i++) {
                 sb.append("  ").append(i + 1).append(". ")
-                        .append(s.top5().get(i).name())
+                        .append(escapeMarkdown(s.top5().get(i).name()))
                         .append(" — ").append(s.top5().get(i).txCount()).append(" зап.\n");
             }
         }

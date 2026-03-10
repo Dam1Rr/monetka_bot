@@ -131,7 +131,13 @@ public class ActivityStatsService {
     private static BigDecimal toBD(Object v) {
         if (v == null) return BigDecimal.ZERO;
         if (v instanceof BigDecimal bd) return bd;
-        return new BigDecimal(v.toString());
+        if (v instanceof Double d)  return BigDecimal.valueOf(d);
+        if (v instanceof Float  f)  return BigDecimal.valueOf((double) f);
+        if (v instanceof Long   l)  return BigDecimal.valueOf(l);
+        if (v instanceof Integer i) return BigDecimal.valueOf(i);
+        if (v instanceof Number n)  return BigDecimal.valueOf(n.doubleValue());
+        try { return new BigDecimal(v.toString().trim()); }
+        catch (NumberFormatException e) { return BigDecimal.ZERO; }
     }
 
     private static long toLong(Object v) {
