@@ -134,7 +134,7 @@ public class CategoryDetectionService {
             lk.setSubcategory(subcategory);
             lk.setUserId(userId);
             lk.setUseCount(1);
-            lk.setCreatedAt(LocalDateTime.now());
+            lk.setCreatedAt(LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek")));
             learnedKeywordRepository.save(lk);
         }
         log.info("Learned: '{}' → {}/{} for user {}", kw, category.getName(),
