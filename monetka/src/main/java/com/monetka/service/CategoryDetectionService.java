@@ -220,6 +220,16 @@ public class CategoryDetectionService {
         /** Confident enough to auto-categorize without asking the user */
         public boolean isConfident() { return confidence >= 0.65; }
 
+        /** Medium confidence — show "Возможно ты имел в виду?" suggestion */
+        public boolean hasSuggestion() { return confidence >= 0.38 && confidence < 0.65 && subcategory != null; }
+
+        public String suggestionLabel() {
+            if (subcategory == null) return "";
+            return (category != null && category.getEmoji() != null ? category.getEmoji() + " " : "")
+                    + (subcategory.getEmoji() != null ? subcategory.getEmoji() + " " : "")
+                    + subcategory.getName();
+        }
+
         /**
          * Should we skip the "choose category" prompt?
          * Yes if: confident match AND (not default category OR came from learned keywords)
