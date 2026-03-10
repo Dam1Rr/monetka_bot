@@ -359,7 +359,6 @@ public class ReportService {
         // Прогноз — контекстный, с оценкой
         if (dayOfMonth > 0 && expenses.compareTo(BigDecimal.ZERO) > 0) {
             BigDecimal projected = dailyAvg.multiply(java.math.BigDecimal.valueOf(daysInMonth));
-            int daysLeft = daysInMonth - dayOfMonth;
             BigDecimal leftToSpend = dailyAvg.multiply(java.math.BigDecimal.valueOf(daysLeft));
 
             sb.append("\n");
