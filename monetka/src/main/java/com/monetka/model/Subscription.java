@@ -72,5 +72,5 @@ public class Subscription {
     }
 
     @PrePersist
-    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); }
+    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek")); }
 }

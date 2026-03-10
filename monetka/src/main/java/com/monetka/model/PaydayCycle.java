@@ -44,8 +44,8 @@ public class PaydayCycle {
         this.startDate   = LocalDate.now(java.time.ZoneId.of("Asia/Bishkek"));
         this.totalIncome = totalIncome;
         this.active      = true;
-        this.createdAt   = LocalDateTime.now();
-        this.updatedAt   = LocalDateTime.now();
+        this.createdAt   = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek"));
+        this.updatedAt   = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek"));
     }
 
     public Long getId()              { return id; }
@@ -54,15 +54,15 @@ public class PaydayCycle {
     public BigDecimal getTotalIncome() { return totalIncome; }
     public boolean isActive()        { return active; }
 
-    public void setActive(boolean active)            { this.active = active; this.updatedAt = LocalDateTime.now(); }
-    public void setTotalIncome(BigDecimal amount)    { this.totalIncome = amount; this.updatedAt = LocalDateTime.now(); }
+    public void setActive(boolean active)            { this.active = active; this.updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek")); }
+    public void setTotalIncome(BigDecimal amount)    { this.totalIncome = amount; this.updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek")); }
 
     @PrePersist
     void prePersist() {
-        if (createdAt == null) createdAt = LocalDateTime.now();
-        if (updatedAt == null) updatedAt = LocalDateTime.now();
+        if (createdAt == null) createdAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek"));
+        if (updatedAt == null) updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek"));
     }
 
     @PreUpdate
-    void preUpdate() { updatedAt = LocalDateTime.now(); }
+    void preUpdate() { updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek")); }
 }

@@ -27,7 +27,7 @@ public class UserMonthlyProfile {
     @Column(name = "night_pct")              private Integer nightPct      = 0;
     @Column(name = "impulse_score")          private Integer impulseScore  = 0;
     @Column(name = "discipline_score")       private Integer disciplineScore = 0;
-    @Column(name = "created_at")             private LocalDateTime createdAt = LocalDateTime.now();
+    @Column(name = "created_at")             private LocalDateTime createdAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek"));
 
     public UserMonthlyProfile() {}
 

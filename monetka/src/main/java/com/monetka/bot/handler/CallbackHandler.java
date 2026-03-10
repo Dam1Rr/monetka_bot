@@ -344,6 +344,7 @@ public class CallbackHandler {
         }
 
         if (action.equals("confirm")) {
+            if (parts.length < 7) return;
             year  = Integer.parseInt(parts[3]);
             month = Integer.parseInt(parts[4]);
             int start = Integer.parseInt(parts[5]);

@@ -452,7 +452,7 @@ public class AdminHandler {
 
         if (result.isPresent()) {
             User u = result.get();
-            bot.sendMarkdown(chatId, "✅ Пользователь *" + u.getDisplayName() + "* одобрен.");
+            bot.sendMarkdown(chatId, "✅ Пользователь *" + escapeMarkdown(u.getDisplayName()) + "* одобрен.");
             // Start onboarding flow
             onboardingService.sendWelcome(u, targetId, bot);
         } else {
@@ -466,7 +466,7 @@ public class AdminHandler {
 
         if (result.isPresent()) {
             User u = result.get();
-            bot.sendMarkdown(chatId, "❌ Пользователь *" + u.getDisplayName() + "* отклонён.");
+            bot.sendMarkdown(chatId, "❌ Пользователь *" + escapeMarkdown(u.getDisplayName()) + "* отклонён.");
             bot.sendText(targetId, "К сожалению, ваша заявка на доступ к Monetka была отклонена.");
         } else {
             bot.sendText(chatId, "Пользователь не найден.");
@@ -479,7 +479,7 @@ public class AdminHandler {
 
         if (result.isPresent()) {
             User u = result.get();
-            bot.sendMarkdown(chatId, "🚫 Пользователь *" + u.getDisplayName() + "* заблокирован.");
+            bot.sendMarkdown(chatId, "🚫 Пользователь *" + escapeMarkdown(u.getDisplayName()) + "* заблокирован.");
             bot.sendText(targetId, "Ваш доступ к Monetka был заблокирован администратором.");
         } else {
             bot.sendText(chatId, "Пользователь не найден.");
@@ -492,7 +492,7 @@ public class AdminHandler {
 
         if (result.isPresent()) {
             User u = result.get();
-            bot.sendMarkdown(chatId, "🔓 Пользователь *" + u.getDisplayName() + "* разблокирован.");
+            bot.sendMarkdown(chatId, "🔓 Пользователь *" + escapeMarkdown(u.getDisplayName()) + "* разблокирован.");
             bot.sendMessage(targetId,
                     "✅ Ваш доступ к Monetka восстановлён!",
                     com.monetka.bot.keyboard.KeyboardFactory.mainMenu());

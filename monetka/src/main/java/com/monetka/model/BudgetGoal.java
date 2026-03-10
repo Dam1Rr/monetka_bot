@@ -36,8 +36,8 @@ public class BudgetGoal {
         this.user      = user;
         this.category  = category;
         this.amount    = amount;
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
+        this.createdAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek"));
+        this.updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek"));
     }
 
     public Long getId()              { return id; }
@@ -48,15 +48,15 @@ public class BudgetGoal {
 
     public void setAmount(BigDecimal amount) {
         this.amount    = amount;
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek"));
     }
 
     @PrePersist
     void prePersist() {
-        if (createdAt == null) createdAt = LocalDateTime.now();
-        if (updatedAt == null) updatedAt = LocalDateTime.now();
+        if (createdAt == null) createdAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek"));
+        if (updatedAt == null) updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek"));
     }
 
     @PreUpdate
-    void preUpdate() { updatedAt = LocalDateTime.now(); }
+    void preUpdate() { updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek")); }
 }

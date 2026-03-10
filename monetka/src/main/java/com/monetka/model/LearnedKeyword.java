@@ -51,5 +51,5 @@ public class LearnedKeyword {
     public void setCreatedAt(LocalDateTime dt)  { this.createdAt = dt; }
 
     @PrePersist
-    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); }
+    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek")); }
 }

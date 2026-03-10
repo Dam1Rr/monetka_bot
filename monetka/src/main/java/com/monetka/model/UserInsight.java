@@ -31,7 +31,7 @@ public class UserInsight {
     public UserInsight(User user, String triggerKey, int month, int year) {
         this.user       = user;
         this.triggerKey = triggerKey;
-        this.sentAt     = LocalDateTime.now();
+        this.sentAt     = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek"));
         this.month      = month;
         this.year       = year;
     }

@@ -413,7 +413,7 @@ public class OverviewHandler {
             if (!tx.getUser().getId().equals(user.getId())) return;
             String catName = tx.getCategory() != null ? tx.getCategory().getDisplayName() : "\u2014";
             bot.sendMarkdown(chatId,
-                    "\uD83D\uDCDD *" + tx.getDescription() + "*\n\n" +
+                    "\uD83D\uDCDD *" + com.monetka.bot.MonetkaBot.esc(tx.getDescription()) + "*\n\n" +
                             "\uD83D\uDCB8 \u2212" + fmt(tx.getAmount()) + "\n" +
                             "\uD83C\uDFF7 " + catName + "\n" +
                             "\uD83D\uDCC5 " + tx.getCreatedAt().toLocalDate().format(DATE_FMT) + "\n\n" +
@@ -473,7 +473,7 @@ public class OverviewHandler {
             stateService.putData(user.getTelegramId(), "edit_tx_id", String.valueOf(txId));
             bot.sendMessage(chatId,
                     "\uD83D\uDCDD *\u0418\u0437\u043c\u0435\u043d\u0438\u0442\u044c \u043e\u043f\u0438\u0441\u0430\u043d\u0438\u0435*\n\n" +
-                            "\u0422\u0435\u043a\u0443\u0449\u0435\u0435: *" + tx.getDescription() + "*\n\n" +
+                            "\u0422\u0435\u043a\u0443\u0449\u0435\u0435: *" + com.monetka.bot.MonetkaBot.esc(tx.getDescription()) + "*\n\n" +
                             "\u0412\u0432\u0435\u0434\u0438 \u043d\u043e\u0432\u043e\u0435 \u043e\u043f\u0438\u0441\u0430\u043d\u0438\u0435:",
                     KeyboardFactory.cancelMenu());
         }, () -> bot.sendText(chatId, "\u0437\u0430\u043f\u0438\u0441\u044c \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430."));
