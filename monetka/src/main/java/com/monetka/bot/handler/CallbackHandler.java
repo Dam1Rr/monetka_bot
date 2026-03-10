@@ -91,11 +91,37 @@ public class CallbackHandler {
         else if (data.startsWith("cancel_sub:"))   handleCancelSub(user, data, chatId, bot);
         else if (data.equals("add_sub"))           handleAddSub(telegramId, chatId, bot);
         else if (data.startsWith("stats:"))        handleStats(user, data, chatId, bot);
+        else if (data.startsWith("suggest:"))      handleSuggest(user, data, chatId, telegramId, bot);
         else if (data.startsWith("cat:"))          handleCategoryChoice(user, data, chatId, telegramId, bot);
         else if (data.startsWith("subcat:"))       handleSubcategoryChoice(user, data, chatId, telegramId, bot);
         else if (data.startsWith("overview:"))     overviewHandler.handle(data.substring(9), user, chatId, callback.getMessage().getMessageId(), bot);
         else if (data.startsWith("onb:"))            handleOnboarding(data, chatId, user, bot);
         else log.warn("Unknown callback: {}", data);
+    }
+
+    // ================================================================
+    // "Возможно ты имел в виду?" suggestion handling
+    // ================================================================
+
+    private void handleSuggest(User user, String data, long chatId, long telegramId, MonetkaBot bot) {
+        // suggest:yes:catId:subId  OR  suggest:no
+        if (data.equals("suggest:no")) {
+            stateService.setState(telegramId, UserState.WAITING_CATEGORY_CHOICE);
+            String desc = stateService.getData(telegramId, "expense_desc");
+            bot.sendMessage(chatId,
+                    "Хорошо, выбери категорию для *" + (desc != null ? desc : "расхода") + "*:",
+                    KeyboardFactory.categoryChoice(categoryRepository.findAll()));
+            return;
+        }
+        // suggest:yes:catId:subId
+        String[] parts = data.split(":");
+        if (parts.length < 4) return;
+        long catId = Long.parseLong(parts[2]);
+        long subId = Long.parseLong(parts[3]);
+        Category category = categoryRepository.findById(catId).orElse(null);
+        if (category == null) return;
+        Subcategory subcategory = subId > 0 ? subcategoryRepository.findById(subId).orElse(null) : null;
+        saveExpenseWithCategory(user, category, subcategory, chatId, telegramId, bot);
     }
 
     // ================================================================
@@ -251,7 +277,7 @@ public class CallbackHandler {
             case "month" -> reportService.buildMonthStats(user);
             default      -> "Неизвестный период";
         };
-        bot.sendMessage(chatId, report, KeyboardFactory.periodPicker());
+        bot.sendMarkdown(chatId, report, KeyboardFactory.periodPicker());
     }
 
     private void handleStatsCalendar(User user, String[] parts, long chatId, MonetkaBot bot) {
@@ -262,7 +288,7 @@ public class CallbackHandler {
 
         if (parts.length < 3) {
             // First open — show current month, no selection
-            bot.sendMessage(chatId,
+            bot.sendMarkdown(chatId,
                     "\uD83D\uDDD3 *Выбери период*\n\n_Тап на день — начало, второй тап — конец:_",
                     KeyboardFactory.calendarMonth(year, month, null, null));
             return;
@@ -275,7 +301,7 @@ public class CallbackHandler {
             month = Integer.parseInt(parts[4]);
             if (action.equals("next")) { month++; if (month > 12) { month = 1; year++; } }
             else                       { month--; if (month < 1)  { month = 12; year--; } }
-            bot.sendMessage(chatId,
+            bot.sendMarkdown(chatId,
                     "\uD83D\uDDD3 *Выбери период*\n\n_Тап на день — начало, второй тап — конец:_",
                     KeyboardFactory.calendarMonth(year, month, null, null));
             return;
@@ -290,7 +316,7 @@ public class CallbackHandler {
             if (stored == null || (storedEnd != null && !storedEnd.isBlank())) {
                 stateService.putData(user.getTelegramId(), "cal_start", year + ":" + month + ":" + day);
                 stateService.putData(user.getTelegramId(), "cal_end", "");
-                bot.sendMessage(chatId,
+                bot.sendMarkdown(chatId,
                         "\uD83D\uDDD3 *Выбери период*\n\n_Теперь выбери конец периода:_",
                         KeyboardFactory.calendarMonth(year, month, day, null));
             } else {
@@ -299,7 +325,7 @@ public class CallbackHandler {
                 int endDay = day;
                 if (endDay < startDay) { int t = startDay; startDay = endDay; endDay = t; }
                 stateService.putData(user.getTelegramId(), "cal_end", year + ":" + month + ":" + endDay);
-                bot.sendMessage(chatId,
+                bot.sendMarkdown(chatId,
                         "\uD83D\uDDD3 *Выбери период*\n\n_Нажми ✅ чтобы подтвердить:_",
                         KeyboardFactory.calendarMonth(year, month, startDay, endDay));
             }
@@ -320,7 +346,7 @@ public class CallbackHandler {
             String label = start + "–" + end + " " +
                     m.getDisplayName(java.time.format.TextStyle.FULL_STANDALONE, new java.util.Locale("ru"));
             String report = reportService.buildRangeStats(user, from, to, label);
-            bot.sendMessage(chatId, report, KeyboardFactory.periodPicker());
+            bot.sendMarkdown(chatId, report, KeyboardFactory.periodPicker());
         }
     }
 

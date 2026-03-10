@@ -50,7 +50,7 @@ public class MonetkaBot extends TelegramWebhookBot {
         msg.setText(text);
         msg.setParseMode("Markdown");
         msg.setReplyMarkup(keyboard);
-        try { execute(msg); } catch (TelegramApiException e) { logger.error("Ошибка отправки сообщения", e); }
+        try { execute(msg); } catch (TelegramApiException e) { logger.error("sendMarkdown error", e); }
     }
 
     public void sendMarkdown(long chatId, String text) {

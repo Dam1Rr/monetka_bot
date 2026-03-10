@@ -171,18 +171,14 @@ public class MessageHandler {
         // use shouldAutoSave() — learned keywords always auto-save
         if (detection.shouldAutoSave()) {
             saveExpense(user, p, detection, chatId, telegramId, bot);
-        } else if (detection.getCategory() != null) {
-
+        } else if (detection.hasSuggestion()) {
+            // Medium confidence — ask user to confirm suggestion
             stateService.setState(telegramId, UserState.WAITING_CATEGORY_CHOICE);
-
             long catId = detection.getCategory().getId();
             Long subId = detection.getSubcategory() != null ? detection.getSubcategory().getId() : null;
-
-            String label = detection.display();
-
             bot.sendMessage(chatId,
-                    "🤔 *" + p.description + "*\n\nВозможно ты имел в виду " + label + "?",
-                    KeyboardFactory.suggestCategory(label, catId, subId));
+                    "🤔 *" + p.description + "*\n\nВозможно ты имел в виду " + detection.suggestionLabel() + "?",
+                    KeyboardFactory.suggestCategory(detection.suggestionLabel(), catId, subId));
         } else {
             stateService.setState(telegramId, UserState.WAITING_CATEGORY_CHOICE);
             bot.sendMessage(chatId,
