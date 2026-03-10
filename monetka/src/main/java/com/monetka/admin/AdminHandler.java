@@ -148,7 +148,7 @@ public class AdminHandler {
         sb.append("  За 30 дней: *").append(s.mau()).append("*\n");
         sb.append("  Retention 7д: *").append(retPct).append("%*  ");
         sb.append(retPct >= 50 ? "✅" : retPct >= 30 ? "⚠️" : "🔴").append("\n");
-        sb.append("  Неактивны 3+ дней: *").append(s.inactive3Days()).append("*\n\n");
+        sb.append("  Неактивны 3+ дней: *").append(s.inactive3days()).append("*\n\n");
 
         // Transactions
         sb.append("💳 *Транзакции*\n");
@@ -182,7 +182,7 @@ public class AdminHandler {
         }
 
         bot.sendMarkdown(chatId, sb.toString());
-        bot.sendMessage(chatId, "📋 Полная таблица активности — в выгрузке Excel",
+        bot.sendMarkdown(chatId, "📋 Полная таблица активности — в выгрузке Excel",
                 AdminKeyboardFactory.backToMenu());
     }
 
@@ -200,7 +200,7 @@ public class AdminHandler {
                         "_(заблокировавшие бота исключены)_\n\n" +
                         "Напиши текст рассылки — поддерживается *жирный*, _курсив_, `код`\n\n" +
                         "_Для отмены нажми кнопку ниже ↓_");
-        bot.sendMessage(chatId, "✏️ Пиши текст:", AdminKeyboardFactory.broadcastCancel());
+        bot.sendMarkdown(chatId, "✏️ Пиши текст:", AdminKeyboardFactory.broadcastCancel());
     }
 
     public void handleBroadcastInput(long chatId, long telegramId, String text, MonetkaBot bot) {
@@ -214,7 +214,7 @@ public class AdminHandler {
                 "📋 *Предпросмотр рассылки:*\n\n" + text + "\n\n" +
                         "───────────────\n" +
                         "Будет отправлено: *" + reachable + "* пользователям");
-        bot.sendMessage(chatId, "Отправляем?", AdminKeyboardFactory.broadcastConfirm());
+        bot.sendMarkdown(chatId, "Отправляем?", AdminKeyboardFactory.broadcastConfirm());
     }
 
     private void confirmBroadcast(long chatId, long telegramId, MonetkaBot bot) {
@@ -243,7 +243,7 @@ public class AdminHandler {
         }
 
         stateService.putData(telegramId, "broadcast_text", null);
-        bot.sendMessage(chatId,
+        bot.sendMarkdown(chatId,
                 "✅ *Рассылка завершена*\n\n" +
                         "Отправлено: *" + sent + "*\n" +
                         (failed > 0 ? "Не дошло: *" + failed + "* (заблокировали бота)" : "Все получили! 🎉"),
@@ -276,7 +276,7 @@ public class AdminHandler {
 
     private void sendMainMenu(long chatId, MonetkaBot bot) {
         boolean open = botSettingsService.isRegistrationOpen();
-        bot.sendMessage(chatId,
+        bot.sendMarkdown(chatId,
                 "🛡 *Панель администратора*\n\nВыберите раздел:",
                 AdminKeyboardFactory.mainMenu(open));
     }
@@ -289,7 +289,7 @@ public class AdminHandler {
         List<User> users = adminService.getPendingUsers();
 
         if (users.isEmpty()) {
-            bot.sendMessage(chatId, "✅ Заявок нет.", AdminKeyboardFactory.backToMenu());
+            bot.sendMarkdown(chatId, "✅ Заявок нет.", AdminKeyboardFactory.backToMenu());
             return;
         }
 
@@ -297,7 +297,7 @@ public class AdminHandler {
 
         for (User u : users) {
             String card = buildUserCard(u);
-            bot.sendMessage(chatId, card, AdminKeyboardFactory.pendingUserActions(u.getTelegramId()));
+            bot.sendMarkdown(chatId, card, AdminKeyboardFactory.pendingUserActions(u.getTelegramId()));
         }
     }
 
@@ -309,7 +309,7 @@ public class AdminHandler {
         List<User> users = adminService.getBlockedUsers();
 
         if (users.isEmpty()) {
-            bot.sendMessage(chatId, "✅ Заблокированных нет.", AdminKeyboardFactory.backToMenu());
+            bot.sendMarkdown(chatId, "✅ Заблокированных нет.", AdminKeyboardFactory.backToMenu());
             return;
         }
 
@@ -317,7 +317,7 @@ public class AdminHandler {
 
         for (User u : users) {
             String card = buildUserCard(u);
-            bot.sendMessage(chatId, card, AdminKeyboardFactory.blockedUserActions(u.getTelegramId()));
+            bot.sendMarkdown(chatId, card, AdminKeyboardFactory.blockedUserActions(u.getTelegramId()));
         }
     }
 
@@ -329,7 +329,7 @@ public class AdminHandler {
         List<User> users = adminService.getActiveUsers();
 
         if (users.isEmpty()) {
-            bot.sendMessage(chatId, "Активных пользователей нет.", AdminKeyboardFactory.backToMenu());
+            bot.sendMarkdown(chatId, "Активных пользователей нет.", AdminKeyboardFactory.backToMenu());
             return;
         }
 
@@ -345,7 +345,7 @@ public class AdminHandler {
             sb.append(" `").append(u.getTelegramId()).append("`\n");
         }
         bot.sendMarkdown(chatId, sb.toString());
-        bot.sendMessage(chatId, "⬆️ Список выше", AdminKeyboardFactory.backToMenu());
+        bot.sendMarkdown(chatId, "⬆️ Список выше", AdminKeyboardFactory.backToMenu());
     }
 
     // ================================================================
@@ -364,7 +364,7 @@ public class AdminHandler {
                 "📦 Подписок активных:   *" + s.getTotalSubscriptions() + "*\n" +
                 "💸 Сумма расходов:      *" + fmt(s.getTotalExpenses()) + "*";
 
-        bot.sendMessage(chatId, msg, AdminKeyboardFactory.backToMenu());
+        bot.sendMarkdown(chatId, msg, AdminKeyboardFactory.backToMenu());
     }
 
     // ================================================================
@@ -400,7 +400,7 @@ public class AdminHandler {
                         "• Обученные ключевые слова\n\n" +
                         "‼️ *Это действие необратимо.*";
 
-        bot.sendMessage(chatId, warning, AdminKeyboardFactory.wipeStep1());
+        bot.sendMarkdown(chatId, warning, AdminKeyboardFactory.wipeStep1());
     }
 
     // ================================================================
@@ -414,7 +414,7 @@ public class AdminHandler {
                         "база данных будет очищена без возможности восстановления.\n\n" +
                         "_Последний шанс отменить._";
 
-        bot.sendMessage(chatId, confirm, AdminKeyboardFactory.wipeStep2());
+        bot.sendMarkdown(chatId, confirm, AdminKeyboardFactory.wipeStep2());
     }
 
     // ================================================================
@@ -428,7 +428,7 @@ public class AdminHandler {
             adminService.resetDatabase();
             log.warn("Database wiped by admin {}", telegramId);
 
-            bot.sendMessage(chatId,
+            bot.sendMarkdown(chatId,
                     "✅ *База данных успешно сброшена.*\n\n" +
                             "Стандартные категории восстановлены.\n" +
                             "Бот готов к работе.",
@@ -436,7 +436,7 @@ public class AdminHandler {
 
         } catch (Exception e) {
             log.error("Database wipe failed: {}", e.getMessage(), e);
-            bot.sendMessage(chatId,
+            bot.sendMarkdown(chatId,
                     "❌ *Ошибка при очистке базы данных*\n\n`" + e.getMessage() + "`",
                     AdminKeyboardFactory.backToMenu());
         }

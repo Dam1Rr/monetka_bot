@@ -144,7 +144,7 @@ public class OverviewHandler {
             sb.append("\n_\u0420\u0430\u0441\u0445\u043e\u0434\u043e\u0432 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442 \uD83C\uDF31_");
         }
 
-        bot.sendMessage(chatId, sb.toString(), KeyboardFactory.overviewMain(cats, categoryRepository));
+        bot.sendMarkdown(chatId, sb.toString(), KeyboardFactory.overviewMain(cats, categoryRepository));
     }
 
     // ================================================================
@@ -217,7 +217,7 @@ public class OverviewHandler {
                 sb.append("_... \u0438 \u0435\u0449\u0451 ").append(txs.size() - 5).append(" \u0437\u0430\u043f\u0438\u0441\u0435\u0439_\n");
         }
 
-        bot.sendMessage(chatId, sb.toString(),
+        bot.sendMarkdown(chatId, sb.toString(),
                 KeyboardFactory.overviewCategory(categoryId, !subcats.isEmpty(),
                         budgetService.getGoal(user, cat).isPresent()));
     }
@@ -260,8 +260,7 @@ public class OverviewHandler {
         }
 
         Long catId = sub.getCategory() != null ? sub.getCategory().getId() : null;
-        bot.sendMessage(chatId, sb.toString(),
-                KeyboardFactory.overviewSubcategory(subcategoryId, catId, txs));
+        bot.sendMarkdown(chatId, sb.toString(), KeyboardFactory.overviewSubcategory(subcategoryId, catId, txs));
     }
 
     // ================================================================
@@ -288,8 +287,7 @@ public class OverviewHandler {
         }
 
         if (byDay.isEmpty()) {
-            bot.sendMessage(chatId, "\u0417\u0430\u043f\u0438\u0441\u0435\u0439 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442 \uD83C\uDF31",
-                    KeyboardFactory.backToCategory(categoryId));
+            bot.sendMarkdown(chatId, "\u0417\u0430\u043f\u0438\u0441\u0435\u0439 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442 \uD83C\uDF31", KeyboardFactory.backToCategory(categoryId));
             return;
         }
 
@@ -305,7 +303,7 @@ public class OverviewHandler {
             sb.append("\n");
         });
 
-        bot.sendMessage(chatId, sb.toString(), KeyboardFactory.backToCategory(categoryId));
+        bot.sendMarkdown(chatId, sb.toString(), KeyboardFactory.backToCategory(categoryId));
     }
 
     // ================================================================
@@ -359,7 +357,7 @@ public class OverviewHandler {
             }
         }
 
-        bot.sendMessage(chatId, sb.toString(), KeyboardFactory.overviewGoals(goals, allCats));
+        bot.sendMarkdown(chatId, sb.toString(), KeyboardFactory.overviewGoals(goals, allCats));
     }
 
     // ================================================================
@@ -414,7 +412,7 @@ public class OverviewHandler {
         transactionRepository.findById(txId).ifPresentOrElse(tx -> {
             if (!tx.getUser().getId().equals(user.getId())) return;
             String catName = tx.getCategory() != null ? tx.getCategory().getDisplayName() : "\u2014";
-            bot.sendMessage(chatId,
+            bot.sendMarkdown(chatId,
                     "\uD83D\uDCDD *" + tx.getDescription() + "*\n\n" +
                             "\uD83D\uDCB8 \u2212" + fmt(tx.getAmount()) + "\n" +
                             "\uD83C\uDFF7 " + catName + "\n" +
@@ -429,7 +427,7 @@ public class OverviewHandler {
         transactionRepository.findById(txId).ifPresentOrElse(tx -> {
             if (!tx.getUser().getId().equals(user.getId())) return;
             String catName = tx.getCategory() != null ? tx.getCategory().getName() : "\u2014";
-            bot.sendMessage(chatId,
+            bot.sendMarkdown(chatId,
                     "\uD83D\uDDD1 *\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u0437\u0430\u043f\u0438\u0441\u044c?*\n\n" +
                             "\uD83D\uDCDD " + tx.getDescription() + "\n" +
                             "\uD83D\uDCB8 \u2212" + fmt(tx.getAmount()) + "\n" +

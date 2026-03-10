@@ -183,12 +183,12 @@ public class MessageHandler {
             stateService.setState(telegramId, UserState.WAITING_CATEGORY_CHOICE);
             long catId = detection.getCategory().getId();
             Long subId = detection.getSubcategory() != null ? detection.getSubcategory().getId() : null;
-            bot.sendMessage(chatId,
+            bot.sendMarkdown(chatId,
                     "🤔 *" + p.description + "*\n\nВозможно ты имел в виду " + detection.suggestionLabel() + "?",
                     KeyboardFactory.suggestCategory(detection.suggestionLabel(), catId, subId));
         } else {
             stateService.setState(telegramId, UserState.WAITING_CATEGORY_CHOICE);
-            bot.sendMessage(chatId,
+            bot.sendMarkdown(chatId,
                     "🤔 Не знаю куда отнести *" + p.description + "*\n\nВыбери категорию — запомню:",
                     KeyboardFactory.categoryChoice(detectionService.getAllCategories()));
         }

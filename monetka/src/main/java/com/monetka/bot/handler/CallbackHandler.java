@@ -108,7 +108,7 @@ public class CallbackHandler {
         if (data.equals("suggest:no")) {
             stateService.setState(telegramId, UserState.WAITING_CATEGORY_CHOICE);
             String desc = stateService.getData(telegramId, "expense_desc");
-            bot.sendMessage(chatId,
+            bot.sendMarkdown(chatId,
                     "Хорошо, выбери категорию для *" + (desc != null ? desc : "расхода") + "*:",
                     KeyboardFactory.categoryChoice(categoryRepository.findAll()));
             return;
@@ -138,7 +138,7 @@ public class CallbackHandler {
         if (category.getSubcategories().isEmpty()) {
             saveExpenseWithCategory(user, category, null, chatId, telegramId, bot);
         } else {
-            bot.sendMessage(chatId,
+            bot.sendMarkdown(chatId,
                     "Выбрана: *" + category.getDisplayName() + "*\n\nТеперь выбери подкатегорию:",
                     KeyboardFactory.subcategoryChoice(category.getSubcategories(), catId));
         }
