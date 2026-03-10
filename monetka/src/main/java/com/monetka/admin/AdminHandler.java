@@ -148,7 +148,7 @@ public class AdminHandler {
         sb.append("  За 30 дней: *").append(s.mau()).append("*\n");
         sb.append("  Retention 7д: *").append(retPct).append("%*  ");
         sb.append(retPct >= 50 ? "✅" : retPct >= 30 ? "⚠️" : "🔴").append("\n");
-        sb.append("  Неактивны 3+ дней: *").append(s.inactive3days()).append("*\n\n");
+        sb.append("  Неактивны 3+ дней: *").append(s.inactive3Days()).append("*\n\n");
 
         // Transactions
         sb.append("💳 *Транзакции*\n");
