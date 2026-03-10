@@ -245,7 +245,7 @@ public class UserExportService {
                 {"🚫 Заблокировано",                    snap.blockedUsers(),  kpiRed},
                 {"✅ Активны сегодня",                  snap.dau(),   kpiGreen},
                 {"📅 Активны за 7 дней",                snap.wau(),    kpiBlue},
-                {"😴 Неактивны 3+ дня",                 snap.inactive3Days(), kpiRed},
+                {"😴 Неактивны 3+ дня",                 snap.inactive3days(), kpiRed},
                 {"💸 Транзакций сегодня",               snap.txToday(),       kpiBlue},
                 {"📈 Транзакций за 7 дней",             snap.txWeek(),        kpiBlue},
         };
