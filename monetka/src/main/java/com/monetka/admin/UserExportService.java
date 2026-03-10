@@ -243,8 +243,8 @@ public class UserExportService {
                 {"👥 Всего пользователей (активных)",  snap.totalUsers(),    kpiGreen},
                 {"⏳ Заявки (ожидают одобрения)",       snap.pendingUsers(),  kpiYellow},
                 {"🚫 Заблокировано",                    snap.blockedUsers(),  kpiRed},
-                {"✅ Активны сегодня",                  snap.activeToday(),   kpiGreen},
-                {"📅 Активны за 7 дней",                snap.activeWeek(),    kpiBlue},
+                {"✅ Активны сегодня",                  snap.dau(),   kpiGreen},
+                {"📅 Активны за 7 дней",                snap.wau(),    kpiBlue},
                 {"😴 Неактивны 3+ дня",                 snap.inactive3days(), kpiRed},
                 {"💸 Транзакций сегодня",               snap.txToday(),       kpiBlue},
                 {"📈 Транзакций за 7 дней",             snap.txWeek(),        kpiBlue},
@@ -266,7 +266,7 @@ public class UserExportService {
 
         // ── Block 2: Retention rate ──────────────────────────────
         if (snap.totalUsers() > 0) {
-            long retentionPct = snap.activeWeek() * 100 / snap.totalUsers();
+            long retentionPct = snap.wau() * 100 / snap.totalUsers();
             Row retRow = sheet.createRow(r++);
             retRow.setHeightInPoints(20);
             Cell retLabel = retRow.createCell(0);
