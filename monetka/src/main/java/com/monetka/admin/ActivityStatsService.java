@@ -145,7 +145,7 @@ public class ActivityStatsService {
     public record ActivitySnapshot(
             long totalUsers, long pendingUsers, long blockedUsers, long churnedUsers,
             long dau, long wau, long mau,
-            long inactive3days,
+            long inactive3Days,
             long txToday, long txWeek, long txMonth,
             BigDecimal avgExpensePerUser,
             List<UserActivity>  top5,
