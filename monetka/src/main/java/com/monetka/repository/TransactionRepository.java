@@ -200,13 +200,23 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     """)
     long countActiveUsersInPeriodDistinct(@Param("from") LocalDateTime from);
 
-    /** Average expense per active user this month */
+    /** Sum of expenses in period */
     @Query("""
-        SELECT COALESCE(SUM(t.amount), 0), COUNT(DISTINCT t.user)
+        SELECT COALESCE(SUM(t.amount), 0)
         FROM Transaction t
         WHERE t.type = 'EXPENSE' AND t.createdAt BETWEEN :from AND :to
     """)
-    Object[] sumAndUserCountExpenses(
+    BigDecimal sumExpensesInPeriod(
+            @Param("from") LocalDateTime from,
+            @Param("to")   LocalDateTime to);
+
+    /** Count distinct users with expenses in period */
+    @Query("""
+        SELECT COUNT(DISTINCT t.user)
+        FROM Transaction t
+        WHERE t.type = 'EXPENSE' AND t.createdAt BETWEEN :from AND :to
+    """)
+    long countUsersWithExpenses(
             @Param("from") LocalDateTime from,
             @Param("to")   LocalDateTime to);
 

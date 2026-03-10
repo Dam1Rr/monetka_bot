@@ -54,19 +54,24 @@ public class ActivityStatsService {
         long txMonth = transactionRepository.countTransactionsInPeriod(monthStart, now);
 
         // ── Avg expense per user this month ──────────────────────────
-        Object[] sumAndCount = transactionRepository.sumAndUserCountExpenses(monthStart, now);
-        BigDecimal totalExp  = toBD(sumAndCount[0]);
-        long       activeUsers = toLong(sumAndCount[1]);
+        BigDecimal totalExp   = safe(() -> transactionRepository.sumExpensesInPeriod(monthStart, now));
+        long       activeUsers = 0;
+        try { activeUsers = transactionRepository.countUsersWithExpenses(monthStart, now); } catch (Exception ignored) {}
         BigDecimal avgExpense  = activeUsers > 0
                 ? totalExp.divide(BigDecimal.valueOf(activeUsers), 0, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
 
         // ── Inactive 3+ days ─────────────────────────────────────────
-        List<Object[]> summary = transactionRepository.userActivitySummary();
+        List<Object[]> summary;
+        try { summary = transactionRepository.userActivitySummary(); }
+        catch (Exception e) { summary = java.util.Collections.emptyList(); }
         long inactive3 = 0;
         for (Object[] row : summary) {
-            LocalDateTime last = (LocalDateTime) row[2];
-            if (ChronoUnit.DAYS.between(last, now) >= 3) inactive3++;
+            try {
+                if (row.length > 2 && row[2] instanceof LocalDateTime last) {
+                    if (ChronoUnit.DAYS.between(last, now) >= 3) inactive3++;
+                }
+            } catch (Exception ignored) {}
         }
 
         // ── Top 5 users this week ─────────────────────────────────────
@@ -79,15 +84,20 @@ public class ActivityStatsService {
         }
 
         // ── Top categories this month (global) ───────────────────────
-        List<Object[]> catRaw = transactionRepository.topCategoriesGlobal(monthStart, now);
+        List<Object[]> catRaw;
+        try { catRaw = transactionRepository.topCategoriesGlobal(monthStart, now); }
+        catch (Exception e) { catRaw = java.util.Collections.emptyList(); }
         List<CategoryTrend> topCats = new ArrayList<>();
         for (int i = 0; i < Math.min(5, catRaw.size()); i++) {
-            String name  = (String) catRaw.get(i)[0];
-            String emoji = (String) catRaw.get(i)[1];
-            BigDecimal total = toBD(catRaw.get(i)[2]);
-            long cnt         = toLong(catRaw.get(i)[3]);
-            topCats.add(new CategoryTrend(
-                    (emoji != null ? emoji + " " : "") + name, total, cnt));
+            try {
+                Object[] row = catRaw.get(i);
+                String name  = row.length > 0 && row[0] != null ? (String) row[0] : "?";
+                String emoji = row.length > 1 && row[1] != null ? (String) row[1] : "";
+                BigDecimal total = row.length > 2 ? toBD(row[2]) : BigDecimal.ZERO;
+                long cnt         = row.length > 3 ? toLong(row[3]) : 0L;
+                topCats.add(new CategoryTrend(
+                        (!emoji.isEmpty() ? emoji + " " : "") + name, total, cnt));
+            } catch (Exception ignored) {}
         }
 
         // ── Per-user retention table ──────────────────────────────────
@@ -144,6 +154,13 @@ public class ActivityStatsService {
         if (v == null) return 0L;
         if (v instanceof Long l) return l;
         return ((Number) v).longValue();
+    }
+
+    private static BigDecimal safe(java.util.function.Supplier<BigDecimal> fn) {
+        try {
+            BigDecimal v = fn.get();
+            return v != null ? v : BigDecimal.ZERO;
+        } catch (Exception e) { return BigDecimal.ZERO; }
     }
 
     // ── DTOs ─────────────────────────────────────────────────────────
