@@ -31,17 +31,20 @@ public class ReportService {
     private final FinancialTipsService  tipsService;
     private final TransactionRepository transactionRepository;
     private final PaydayService         paydayService;
+    private final AiInsightService      aiInsightService;
 
     public ReportService(StatisticsService statisticsService,
                          SubscriptionService subscriptionService,
                          FinancialTipsService tipsService,
                          TransactionRepository transactionRepository,
-                         PaydayService paydayService) {
-        this.statisticsService  = statisticsService;
-        this.subscriptionService = subscriptionService;
-        this.tipsService         = tipsService;
+                         PaydayService paydayService,
+                         AiInsightService aiInsightService) {
+        this.statisticsService     = statisticsService;
+        this.subscriptionService   = subscriptionService;
+        this.tipsService           = tipsService;
         this.transactionRepository = transactionRepository;
         this.paydayService         = paydayService;
+        this.aiInsightService      = aiInsightService;
     }
 
     // ================================================================
@@ -353,17 +356,42 @@ public class ReportService {
             }
         }
 
-        // Прогноз
+        // Прогноз — контекстный, с оценкой
         if (dayOfMonth > 0 && expenses.compareTo(BigDecimal.ZERO) > 0) {
             BigDecimal projected = dailyAvg.multiply(java.math.BigDecimal.valueOf(daysInMonth));
-            sb.append("\n\uD83D\uDD2E Если ничего не менять —\n");
-            sb.append("   к концу месяца потратишь *~").append(fmt(projected)).append("*\n");
+            int daysLeft = daysInMonth - dayOfMonth;
+            BigDecimal leftToSpend = dailyAvg.multiply(java.math.BigDecimal.valueOf(daysLeft));
+
+            sb.append("\n");
+
+            // Одна строка прогноза — просто и ясно
+            if (income.compareTo(BigDecimal.ZERO) > 0) {
+                int spendPct = projected.multiply(java.math.BigDecimal.valueOf(100))
+                        .divide(income, 0, java.math.RoundingMode.HALF_UP).intValue();
+                BigDecimal saving = income.subtract(projected);
+                if (spendPct <= 85) {
+                    sb.append("\uD83D\uDFE2 К концу месяца останется *~").append(fmt(saving)).append("*\n");
+                } else if (spendPct <= 100) {
+                    sb.append("\uD83D\uDFE1 К концу месяца останется *~").append(fmt(saving)).append("* — следи за темпом\n");
+                } else {
+                    BigDecimal over = projected.subtract(income);
+                    sb.append("\uD83D\uDD34 К концу месяца *минус ~").append(fmt(over)).append("* — нужно притормозить\n");
+                }
+            } else {
+                sb.append("\uD83D\uDD2E К концу месяца потратишь *~").append(fmt(projected)).append("*\n");
+            }
         }
 
         // ── Умный инсайт ──
         sb.append("\n").append("\u2501".repeat(16)).append("\n");
         sb.append("\uD83E\uDDE0 *Главное за месяц:*\n\n");
-        sb.append(buildSmartInsight(user, cats, income, expenses, diff, txs));
+        // Пробуем AI инсайт, при ошибке — шаблонный
+        String insight = aiInsightService.generateMonthInsight(
+                cats, income, expenses, diff, txs, dayOfMonth, daysInMonth, prevExpenses);
+        if (insight == null) {
+            insight = buildSmartInsight(user, cats, income, expenses, diff, txs);
+        }
+        sb.append(insight);
 
         return sb.toString();
     }
@@ -449,10 +477,12 @@ public class ReportService {
             if (savePct >= 20) {
                 BigDecimal half = diff.divide(java.math.BigDecimal.valueOf(2), 0, RoundingMode.HALF_UP);
                 BigDecimal year = half.multiply(java.math.BigDecimal.valueOf(12));
-                return "Месяц идёт хорошо — остаток *" + fmt(diff) + "* \uD83D\uDCB0\n\n"
-                        + "Отложи хотя бы половину → *" + fmt(half) + "* в копилку.\n"
-                        + "Если каждый месяц так — за год *" + fmt(year) + "*.\n"
-                        + "Это уже что-то серьёзное \uD83D\uDCAA\n";
+                BigDecimal perDay = diff.divide(java.math.BigDecimal.valueOf(30), 0, RoundingMode.HALF_UP);
+                return "Ты сохраняешь *" + savePct + "%* дохода — это круто \uD83D\uDCAA\n\n"
+                        + "Свободных денег: *" + fmt(diff) + "*\n"
+                        + "Это *" + fmt(perDay) + "* сом каждый день лишних.\n\n"
+                        + "Отложи половину → *" + fmt(half) + "* в копилку\n"
+                        + "12 таких месяцев = *" + fmt(year) + "* накоплений \uD83C\uDFAF\n";
             }
         }
 
