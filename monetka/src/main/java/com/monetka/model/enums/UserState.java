@@ -25,5 +25,8 @@ public enum UserState {
     WAITING_EDIT_DESCRIPTION,
 
     // Admin
-    WAITING_BROADCAST_MESSAGE
+    WAITING_BROADCAST_MESSAGE,
+
+    // Онбординг — начальный баланс
+    WAITING_INITIAL_BALANCE
 }

@@ -46,6 +46,7 @@ public class MessageHandler {
     private final BudgetService    budgetService;
     private final PaydayService    paydayService;
     private final InsightEngine    insightEngine;
+    private final OnboardingService onboardingService;
 
     public MessageHandler(UserService userService, UserStateService stateService,
                           TransactionService transactionService, SubscriptionService subscriptionService,
@@ -56,7 +57,8 @@ public class MessageHandler {
                           com.monetka.admin.AdminHandler adminHandler,
                           BudgetService budgetService,
                           PaydayService paydayService,
-                          InsightEngine insightEngine) {
+                          InsightEngine insightEngine,
+                          OnboardingService onboardingService) {
         this.userService         = userService;
         this.stateService        = stateService;
         this.transactionService  = transactionService;
@@ -70,6 +72,7 @@ public class MessageHandler {
         this.budgetService       = budgetService;
         this.paydayService       = paydayService;
         this.insightEngine       = insightEngine;
+        this.onboardingService   = onboardingService;
     }
 
     public void handle(Message message, MonetkaBot bot) {
@@ -110,6 +113,10 @@ public class MessageHandler {
             case WAITING_GOAL_AMOUNT    -> { if (overviewHandler.handleGoalAmountInput(user, text, chatId, bot)) return; }
             case WAITING_EDIT_AMOUNT      -> { if (overviewHandler.handleEditAmountInput(user, text, chatId, bot)) return; }
             case WAITING_EDIT_DESCRIPTION -> { if (overviewHandler.handleEditDescInput(user, text, chatId, bot)) return; }
+            case WAITING_INITIAL_BALANCE -> {
+                handleInitialBalance(user, text, chatId, telegramId, bot);
+                return;
+            }
             case WAITING_BROADCAST_MESSAGE -> {
                 adminHandler.handleBroadcastInput(chatId, telegramId, text, bot);
                 return;
@@ -298,6 +305,24 @@ public class MessageHandler {
                         "💰 +" + fmt(p.amount) + "\n" +
                         "💳 Баланс: *" + fmt(user.getBalance()) + "*" + cycleHint,
                 KeyboardFactory.mainMenu());
+    }
+
+    // ================================================================
+    // Онбординг — начальный баланс
+    // ================================================================
+
+    private void handleInitialBalance(User user, String text, long chatId, long telegramId, MonetkaBot bot) {
+        try {
+            BigDecimal amount = new BigDecimal(text.trim().replace(",", ".").replace(" ", ""));
+            if (amount.compareTo(BigDecimal.ZERO) < 0) throw new NumberFormatException();
+            transactionService.addIncome(user, amount, "Начальный баланс");
+            stateService.reset(telegramId);
+            onboardingService.sendFinish(chatId, bot);
+        } catch (NumberFormatException e) {
+            bot.sendMessage(chatId,
+                    "Не понял число \uD83E\uDD14 Напиши просто сумму, например: `32000`",
+                    KeyboardFactory.onboardingBalanceSkip());
+        }
     }
 
     // ================================================================

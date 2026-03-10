@@ -190,7 +190,22 @@ public class CallbackHandler {
     private void handleOnboarding(String data, long chatId, User user, MonetkaBot bot) {
         switch (data) {
             case "onb:step2"  -> onboardingService.sendHowToRecord(chatId, bot);
-            case "onb:step3"  -> onboardingService.sendSuggestGoal(chatId, bot);
+            case "onb:step3"  -> onboardingService.sendResetOffer(chatId, bot);
+            case "onb:reset"  -> {
+                // Delete all user transactions and start fresh
+                transactionService.clearAllTransactions(user);
+                onboardingService.sendAskInitialBalance(chatId, bot);
+                userStateService.setState(user.getTelegramId(), com.monetka.model.enums.UserState.WAITING_INITIAL_BALANCE);
+            }
+            case "onb:balance" -> {
+                // Keep data, just ask balance
+                onboardingService.sendAskInitialBalance(chatId, bot);
+                userStateService.setState(user.getTelegramId(), com.monetka.model.enums.UserState.WAITING_INITIAL_BALANCE);
+            }
+            case "onb:balance_skip" -> {
+                userStateService.reset(user.getTelegramId());
+                onboardingService.sendFinish(chatId, bot);
+            }
             case "onb:goals"  -> {
                 overviewHandler.showGoals(user, chatId, bot);
                 onboardingService.sendFinish(chatId, bot);

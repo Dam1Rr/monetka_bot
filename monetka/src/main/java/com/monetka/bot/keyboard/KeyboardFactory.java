@@ -338,6 +338,20 @@ public final class KeyboardFactory {
                 .build();
     }
 
+
+    public static InlineKeyboardMarkup onboardingReset() {
+        return InlineKeyboardMarkup.builder()
+                .keyboardRow(List.of(btn("✅ Начать с чистого листа", "onb:reset")))
+                .keyboardRow(List.of(btn("Оставить данные как есть ➡", "onb:balance")))
+                .build();
+    }
+
+    public static InlineKeyboardMarkup onboardingBalanceSkip() {
+        return InlineKeyboardMarkup.builder()
+                .keyboardRow(List.of(btn("Пропустить ➡", "onb:balance_skip")))
+                .build();
+    }
+
     // ================================================================
     // Edit transaction
     // ================================================================

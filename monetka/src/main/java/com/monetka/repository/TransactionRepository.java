@@ -192,6 +192,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     """)
     List<Object[]> userActivitySummary();
 
+    /** Delete all transactions for a user — used when starting fresh after onboarding */
+    void deleteByUser(User user);
+
     /** MAU — distinct users with any transaction in last 30 days */
     @Query("""
         SELECT COUNT(DISTINCT t.user)
@@ -234,4 +237,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     List<Object[]> topCategoriesGlobal(
             @Param("from") LocalDateTime from,
             @Param("to")   LocalDateTime to);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query("DELETE FROM Transaction t WHERE t.user = :user")
+    void deleteAllByUser(@Param("user") com.monetka.model.User user);
 }
