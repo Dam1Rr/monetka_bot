@@ -5,7 +5,10 @@ import com.monetka.service.BotSettingsService;
 import com.monetka.admin.ActivityStatsService;
 import com.monetka.config.BotProperties;
 import com.monetka.model.User;
+import com.monetka.model.enums.UserState;
 import com.monetka.service.OnboardingService;
+import com.monetka.service.UserStateService;
+import com.monetka.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -40,18 +43,24 @@ public class AdminHandler {
     private final OnboardingService onboardingService;
     private final BotSettingsService   botSettingsService;
     private final ActivityStatsService  activityStatsService;
+    private final UserStateService      stateService;
+    private final UserRepository        userRepository;
 
     public AdminHandler(AdminService adminService, BotProperties botProperties,
                         UserExportService exportService,
                         OnboardingService onboardingService,
                         BotSettingsService botSettingsService,
-                        ActivityStatsService activityStatsService) {
-        this.adminService      = adminService;
-        this.botProperties     = botProperties;
-        this.exportService     = exportService;
-        this.onboardingService  = onboardingService;
-        this.botSettingsService  = botSettingsService;
+                        ActivityStatsService activityStatsService,
+                        UserStateService stateService,
+                        UserRepository userRepository) {
+        this.adminService         = adminService;
+        this.botProperties        = botProperties;
+        this.exportService        = exportService;
+        this.onboardingService    = onboardingService;
+        this.botSettingsService   = botSettingsService;
         this.activityStatsService = activityStatsService;
+        this.stateService         = stateService;
+        this.userRepository       = userRepository;
     }
 
     // ================================================================
@@ -104,6 +113,9 @@ public class AdminHandler {
         else if (action.startsWith("unblock:"))      unblockUser(action, chatId, bot);
         else if (action.equals("toggle_reg"))         toggleRegistration(chatId, bot);
         else if (action.equals("activity"))              showActivityStats(chatId, bot);
+        else if (action.equals("broadcast"))             startBroadcast(chatId, telegramId, bot);
+        else if (action.equals("broadcast_confirm"))     confirmBroadcast(chatId, telegramId, bot);
+        else if (action.equals("broadcast_cancel"))      cancelBroadcast(chatId, telegramId, bot);
         else log.warn("Unknown admin callback: {}", data);
     }
 
@@ -114,36 +126,134 @@ public class AdminHandler {
     private void showActivityStats(long chatId, MonetkaBot bot) {
         ActivityStatsService.ActivitySnapshot s = activityStatsService.getSnapshot();
 
-        long retPct = s.totalUsers() > 0 ? s.activeWeek() * 100 / s.totalUsers() : 0;
-        String retIcon = retPct >= 50 ? "\u2705" : "\u26A0\uFE0F";
+        long retPct = s.wau() > 0 && s.totalUsers() > 0
+                ? s.wau() * 100 / s.totalUsers() : 0;
 
         StringBuilder sb = new StringBuilder();
-        sb.append("\uD83D\uDCCA *\u0410\u043a\u0442\u0438\u0432\u043d\u043e\u0441\u0442\u044c \u2014 \u0441\u0435\u0439\u0447\u0430\u0441*\n\n");
+        sb.append("📊 *Метрики продукта*\n\n");
 
-        sb.append("\uD83D\uDC65 \u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0435\u0439: *").append(s.totalUsers()).append("*");
-        if (s.pendingUsers() > 0) sb.append(" (+").append(s.pendingUsers()).append(" \u0437\u0430\u044f\u0432\u043e\u043a)");
+        // Users
+        sb.append("👥 *Пользователи*\n");
+        sb.append("  Всего активных: *").append(s.totalUsers()).append("*");
+        if (s.pendingUsers() > 0) sb.append("  _(+").append(s.pendingUsers()).append(" заявок)_");
+        sb.append("\n");
+        if (s.churnedUsers() > 0)
+            sb.append("  🚪 Заблокировали бота: *").append(s.churnedUsers()).append("*\n");
         sb.append("\n");
 
-        sb.append("\u2705 \u0410\u043a\u0442\u0438\u0432\u043d\u044b \u0441\u0435\u0433\u043e\u0434\u043d\u044f: *").append(s.activeToday()).append("*\n");
-        sb.append("\uD83D\uDCC5 \u0410\u043a\u0442\u0438\u0432\u043d\u044b \u0437\u0430 7 \u0434\u043d\u0435\u0439: *").append(s.activeWeek()).append("*\n");
-        sb.append("\uD83D\uDE34 \u041d\u0435\u0430\u043a\u0442\u0438\u0432\u043d\u044b 3+ \u0434\u043d\u044f: *").append(s.inactive3days()).append("*\n\n");
+        // DAU / WAU / MAU
+        sb.append("📈 *Активность (DAU / WAU / MAU)*\n");
+        sb.append("  Сегодня: *").append(s.dau()).append("*\n");
+        sb.append("  За 7 дней: *").append(s.wau()).append("*\n");
+        sb.append("  За 30 дней: *").append(s.mau()).append("*\n");
+        sb.append("  Retention 7д: *").append(retPct).append("%*  ");
+        sb.append(retPct >= 50 ? "✅" : retPct >= 30 ? "⚠️" : "🔴").append("\n");
+        sb.append("  Неактивны 3+ дней: *").append(s.inactive3days()).append("*\n\n");
 
-        sb.append("\uD83D\uDCB8 \u0422\u0440\u0430\u043d\u0437\u0430\u043a\u0446\u0438\u0439 \u0441\u0435\u0433\u043e\u0434\u043d\u044f: *").append(s.txToday()).append("*\n");
-        sb.append("\uD83D\uDCC8 \u0422\u0440\u0430\u043d\u0437\u0430\u043a\u0446\u0438\u0439 \u0437\u0430 7 \u0434\u043d\u0435\u0439: *").append(s.txWeek()).append("*\n\n");
+        // Transactions
+        sb.append("💳 *Транзакции*\n");
+        sb.append("  Сегодня: *").append(s.txToday()).append("*\n");
+        sb.append("  За 7 дней: *").append(s.txWeek()).append("*\n");
+        sb.append("  За месяц: *").append(s.txMonth()).append("*\n");
+        if (s.avgExpensePerUser().compareTo(java.math.BigDecimal.ZERO) > 0)
+            sb.append("  Средний расход/юзер: *").append(fmt(s.avgExpensePerUser())).append("*\n");
+        sb.append("\n");
 
-        sb.append(retIcon).append(" *Retention 7 \u0434\u043d\u0435\u0439: ").append(retPct).append("%*\n\n");
+        // Top categories this month
+        if (!s.topCategories().isEmpty()) {
+            sb.append("🔥 *Топ категорий этого месяца (все юзеры):*\n");
+            for (int i = 0; i < s.topCategories().size(); i++) {
+                ActivityStatsService.CategoryTrend cat = s.topCategories().get(i);
+                sb.append("  ").append(i + 1).append(". ")
+                        .append(cat.label()).append(" — *").append(fmt(cat.total())).append("*")
+                        .append("  (").append(cat.txCount()).append(" трат)\n");
+            }
+            sb.append("\n");
+        }
 
+        // Top users this week
         if (!s.top5().isEmpty()) {
-            sb.append("\uD83D\uDD25 *\u0422\u043e\u043f \u0437\u0430 \u043d\u0435\u0434\u0435\u043b\u044e:*\n");
+            sb.append("🏆 *Топ юзеров за неделю:*\n");
             for (int i = 0; i < s.top5().size(); i++) {
-                sb.append(i + 1).append(". ").append(s.top5().get(i).name())
-                        .append(" \u2014 ").append(s.top5().get(i).txCount()).append(" \u0437\u0430\u043f.\n");
+                sb.append("  ").append(i + 1).append(". ")
+                        .append(s.top5().get(i).name())
+                        .append(" — ").append(s.top5().get(i).txCount()).append(" зап.\n");
             }
         }
 
         bot.sendMarkdown(chatId, sb.toString());
-        bot.sendMessage(chatId, "\uD83D\uDCCB \u041F\u043E\u043B\u043D\u0430\u044F \u0442\u0430\u0431\u043B\u0438\u0446\u0430 \u0430\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442\u0438 \u2014 \u0432 \u0432\u044B\u0433\u0440\u0443\u0437\u043A\u0435 Excel \u0432\u043A\u043B\u0430\u0434\u043A\u0435 \u00AB\u0410\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442\u044C\u00BB",
+        bot.sendMessage(chatId, "📋 Полная таблица активности — в выгрузке Excel",
                 AdminKeyboardFactory.backToMenu());
+    }
+
+    // ================================================================
+    // Broadcast
+    // ================================================================
+
+    private void startBroadcast(long chatId, long telegramId, MonetkaBot bot) {
+        long reachable = userRepository.findAllByStatusAndBlockedBotFalse(
+                com.monetka.model.enums.UserStatus.ACTIVE).size();
+        stateService.setState(telegramId, UserState.WAITING_BROADCAST_MESSAGE);
+        bot.sendMarkdown(chatId,
+                "📢 *Рассылка*\n\n" +
+                        "Получат сообщение: *" + reachable + "* активных пользователей\n" +
+                        "_(заблокировавшие бота исключены)_\n\n" +
+                        "Напиши текст рассылки — поддерживается *жирный*, _курсив_, `код`\n\n" +
+                        "_Для отмены нажми кнопку ниже ↓_");
+        bot.sendMessage(chatId, "✏️ Пиши текст:", AdminKeyboardFactory.broadcastCancel());
+    }
+
+    public void handleBroadcastInput(long chatId, long telegramId, String text, MonetkaBot bot) {
+        stateService.putData(telegramId, "broadcast_text", text);
+        stateService.setState(telegramId, UserState.IDLE);
+
+        long reachable = userRepository.findAllByStatusAndBlockedBotFalse(
+                com.monetka.model.enums.UserStatus.ACTIVE).size();
+
+        bot.sendMarkdown(chatId,
+                "📋 *Предпросмотр рассылки:*\n\n" + text + "\n\n" +
+                        "───────────────\n" +
+                        "Будет отправлено: *" + reachable + "* пользователям");
+        bot.sendMessage(chatId, "Отправляем?", AdminKeyboardFactory.broadcastConfirm());
+    }
+
+    private void confirmBroadcast(long chatId, long telegramId, MonetkaBot bot) {
+        String text = stateService.getData(telegramId, "broadcast_text");
+        if (text == null || text.isBlank()) {
+            bot.sendMarkdown(chatId, "❌ Текст рассылки не найден. Начни заново.");
+            sendMainMenu(chatId, bot);
+            return;
+        }
+
+        List<com.monetka.model.User> users = userRepository.findAllByStatusAndBlockedBotFalse(
+                com.monetka.model.enums.UserStatus.ACTIVE);
+
+        bot.sendMarkdown(chatId, "⏳ Отправляю " + users.size() + " пользователям...");
+
+        int sent = 0, failed = 0;
+        for (com.monetka.model.User u : users) {
+            try {
+                bot.sendMarkdown(u.getTelegramId(), "📢 *Сообщение от Monetka*\n\n" + text);
+                sent++;
+                Thread.sleep(50); // rate limit protection
+            } catch (Exception e) {
+                failed++;
+                log.warn("Broadcast failed for {}: {}", u.getTelegramId(), e.getMessage());
+            }
+        }
+
+        stateService.putData(telegramId, "broadcast_text", null);
+        bot.sendMessage(chatId,
+                "✅ *Рассылка завершена*\n\n" +
+                        "Отправлено: *" + sent + "*\n" +
+                        (failed > 0 ? "Не дошло: *" + failed + "* (заблокировали бота)" : "Все получили! 🎉"),
+                AdminKeyboardFactory.backToMenu());
+    }
+
+    private void cancelBroadcast(long chatId, long telegramId, MonetkaBot bot) {
+        stateService.reset(telegramId);
+        bot.sendMarkdown(chatId, "❌ Рассылка отменена.");
+        sendMainMenu(chatId, bot);
     }
 
     // ================================================================

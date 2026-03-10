@@ -22,5 +22,8 @@ public enum UserState {
 
     // Редактирование транзакций
     WAITING_EDIT_AMOUNT,
-    WAITING_EDIT_DESCRIPTION
+    WAITING_EDIT_DESCRIPTION,
+
+    // Admin
+    WAITING_BROADCAST_MESSAGE
 }

@@ -17,6 +17,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findAllByStatus(UserStatus status);
 
-    /** For com.monetka.admin statistics panel */
+    /** For admin statistics panel */
     long countByStatus(UserStatus status);
+
+    /** All active users who haven't blocked the bot — for broadcast */
+    java.util.List<User> findAllByStatusAndBlockedBotFalse(UserStatus status);
+
+    /** Count churned (blocked bot) users */
+    long countByBlockedBotTrue();
 }

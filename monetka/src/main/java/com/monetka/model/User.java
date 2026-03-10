@@ -39,6 +39,15 @@ public class User {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "blocked_bot", nullable = false)
+    private boolean blockedBot = false;
+
+    @Column(name = "blocked_at")
+    private LocalDateTime blockedAt;
+
+    @Column(name = "last_seen_at")
+    private LocalDateTime lastSeenAt;
+
     public User() {}
 
     public static User create(Long telegramId, String username, String firstName, String lastName) {
@@ -69,6 +78,14 @@ public class User {
     public void setLastName(String lastName)            { this.lastName = lastName; }
     public void setStatus(UserStatus status)            { this.status = status; }
     public void setBalance(BigDecimal balance)          { this.balance = balance; }
+
+    public boolean isBlockedBot()               { return blockedBot; }
+    public LocalDateTime getBlockedAt()         { return blockedAt; }
+    public LocalDateTime getLastSeenAt()        { return lastSeenAt; }
+
+    public void setBlockedBot(boolean b)        { this.blockedBot = b; }
+    public void setBlockedAt(LocalDateTime t)   { this.blockedAt = t; }
+    public void setLastSeenAt(LocalDateTime t)  { this.lastSeenAt = t; }
 
     public String getDisplayName() {
         if (firstName != null && !firstName.isBlank()) return firstName;

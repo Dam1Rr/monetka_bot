@@ -191,4 +191,37 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         ORDER BY lastActivity DESC
     """)
     List<Object[]> userActivitySummary();
+
+    /** MAU — distinct users with any transaction in last 30 days */
+    @Query("""
+        SELECT COUNT(DISTINCT t.user)
+        FROM Transaction t
+        WHERE t.createdAt >= :from
+    """)
+    long countActiveUsersInPeriodDistinct(@Param("from") LocalDateTime from);
+
+    /** Average expense per active user this month */
+    @Query("""
+        SELECT COALESCE(SUM(t.amount), 0), COUNT(DISTINCT t.user)
+        FROM Transaction t
+        WHERE t.type = 'EXPENSE' AND t.createdAt BETWEEN :from AND :to
+    """)
+    Object[] sumAndUserCountExpenses(
+            @Param("from") LocalDateTime from,
+            @Param("to")   LocalDateTime to);
+
+    /** Top categories by total spend across ALL users in period */
+    @Query("""
+        SELECT t.category.name, t.category.emoji,
+               SUM(t.amount) as total, COUNT(t) as cnt
+        FROM Transaction t
+        WHERE t.type = 'EXPENSE'
+          AND t.category IS NOT NULL
+          AND t.createdAt BETWEEN :from AND :to
+        GROUP BY t.category.name, t.category.emoji
+        ORDER BY total DESC
+    """)
+    List<Object[]> topCategoriesGlobal(
+            @Param("from") LocalDateTime from,
+            @Param("to")   LocalDateTime to);
 }

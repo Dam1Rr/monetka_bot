@@ -42,6 +42,7 @@ public class MessageHandler {
 
     private final StatisticsService       statisticsService;
     private final OverviewHandler  overviewHandler;
+    private final com.monetka.admin.AdminHandler adminHandler;
     private final BudgetService    budgetService;
     private final PaydayService    paydayService;
     private final InsightEngine    insightEngine;
@@ -52,6 +53,7 @@ public class MessageHandler {
                           CategoryDetectionService detectionService,
                           StatisticsService statisticsService,
                           OverviewHandler overviewHandler,
+                          com.monetka.admin.AdminHandler adminHandler,
                           BudgetService budgetService,
                           PaydayService paydayService,
                           InsightEngine insightEngine) {
@@ -64,6 +66,7 @@ public class MessageHandler {
         this.detectionService    = detectionService;
         this.statisticsService   = statisticsService;
         this.overviewHandler     = overviewHandler;
+        this.adminHandler        = adminHandler;
         this.budgetService       = budgetService;
         this.paydayService       = paydayService;
         this.insightEngine       = insightEngine;
@@ -107,6 +110,10 @@ public class MessageHandler {
             case WAITING_GOAL_AMOUNT    -> { if (overviewHandler.handleGoalAmountInput(user, text, chatId, bot)) return; }
             case WAITING_EDIT_AMOUNT      -> { if (overviewHandler.handleEditAmountInput(user, text, chatId, bot)) return; }
             case WAITING_EDIT_DESCRIPTION -> { if (overviewHandler.handleEditDescInput(user, text, chatId, bot)) return; }
+            case WAITING_BROADCAST_MESSAGE -> {
+                adminHandler.handleBroadcastInput(chatId, telegramId, text, bot);
+                return;
+            }
             default -> {}
         }
 

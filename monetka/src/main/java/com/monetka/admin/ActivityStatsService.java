@@ -7,6 +7,8 @@ import com.monetka.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -29,21 +31,37 @@ public class ActivityStatsService {
 
     @Transactional(readOnly = true)
     public ActivitySnapshot getSnapshot() {
-        LocalDateTime now       = LocalDateTime.now(BISHKEK);
+        LocalDateTime now        = LocalDateTime.now(BISHKEK);
         LocalDateTime todayStart = LocalDate.now(BISHKEK).atStartOfDay();
         LocalDateTime weekStart  = todayStart.minusDays(6);
+        LocalDateTime monthStart = todayStart.withDayOfMonth(1);
+        LocalDateTime month30    = todayStart.minusDays(29);
 
+        // ── User counts ─────────────────────────────────────────────
         long totalUsers   = userRepository.countByStatus(UserStatus.ACTIVE);
         long pendingUsers = userRepository.countByStatus(UserStatus.PENDING);
         long blockedUsers = userRepository.countByStatus(UserStatus.BLOCKED);
+        long churnedUsers = userRepository.countByBlockedBotTrue();
 
-        long activeToday  = transactionRepository.countActiveUsersInPeriod(todayStart, now);
-        long activeWeek   = transactionRepository.countActiveUsersInPeriod(weekStart, now);
+        // ── DAU / WAU / MAU ─────────────────────────────────────────
+        long dau = transactionRepository.countActiveUsersInPeriod(todayStart, now);
+        long wau = transactionRepository.countActiveUsersInPeriod(weekStart, now);
+        long mau = transactionRepository.countActiveUsersInPeriodDistinct(month30);
 
+        // ── Transactions ─────────────────────────────────────────────
         long txToday = transactionRepository.countTransactionsInPeriod(todayStart, now);
         long txWeek  = transactionRepository.countTransactionsInPeriod(weekStart, now);
+        long txMonth = transactionRepository.countTransactionsInPeriod(monthStart, now);
 
-        // Users inactive 3+ days
+        // ── Avg expense per user this month ──────────────────────────
+        Object[] sumAndCount = transactionRepository.sumAndUserCountExpenses(monthStart, now);
+        BigDecimal totalExp  = toBD(sumAndCount[0]);
+        long       activeUsers = toLong(sumAndCount[1]);
+        BigDecimal avgExpense  = activeUsers > 0
+                ? totalExp.divide(BigDecimal.valueOf(activeUsers), 0, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+
+        // ── Inactive 3+ days ─────────────────────────────────────────
         List<Object[]> summary = transactionRepository.userActivitySummary();
         long inactive3 = 0;
         for (Object[] row : summary) {
@@ -51,19 +69,31 @@ public class ActivityStatsService {
             if (ChronoUnit.DAYS.between(last, now) >= 3) inactive3++;
         }
 
-        // Top 5 active users this week
+        // ── Top 5 users this week ─────────────────────────────────────
         List<Object[]> topRaw = transactionRepository.topUsersByActivityInPeriod(weekStart, now);
         List<UserActivity> top5 = new ArrayList<>();
         for (int i = 0; i < Math.min(5, topRaw.size()); i++) {
-            User u    = (User) topRaw.get(i)[0];
-            long cnt  = (Long) topRaw.get(i)[1];
+            User u   = (User) topRaw.get(i)[0];
+            long cnt = (Long) topRaw.get(i)[1];
             top5.add(new UserActivity(u.getDisplayName(), cnt));
         }
 
-        // Per-user retention table
+        // ── Top categories this month (global) ───────────────────────
+        List<Object[]> catRaw = transactionRepository.topCategoriesGlobal(monthStart, now);
+        List<CategoryTrend> topCats = new ArrayList<>();
+        for (int i = 0; i < Math.min(5, catRaw.size()); i++) {
+            String name  = (String) catRaw.get(i)[0];
+            String emoji = (String) catRaw.get(i)[1];
+            BigDecimal total = toBD(catRaw.get(i)[2]);
+            long cnt         = toLong(catRaw.get(i)[3]);
+            topCats.add(new CategoryTrend(
+                    (emoji != null ? emoji + " " : "") + name, total, cnt));
+        }
+
+        // ── Per-user retention table ──────────────────────────────────
         List<UserRetention> retention = new ArrayList<>();
-        List<User> activeUsers = userRepository.findAllByStatus(UserStatus.ACTIVE);
-        for (User u : activeUsers) {
+        List<User> activeList = userRepository.findAllByStatus(UserStatus.ACTIVE);
+        for (User u : activeList) {
             long txCount = 0;
             LocalDateTime lastTx = null;
             for (Object[] row : summary) {
@@ -80,36 +110,59 @@ public class ActivityStatsService {
                     u.getCreatedAt() != null ? u.getCreatedAt().toLocalDate() : null,
                     txCount,
                     lastTx != null ? lastTx.toLocalDate() : null,
-                    daysAgo
+                    daysAgo,
+                    u.isBlockedBot()
             ));
         }
         retention.sort(Comparator.comparingLong(r -> -r.txCount));
 
         return new ActivitySnapshot(
-                totalUsers, pendingUsers, blockedUsers,
-                activeToday, activeWeek, inactive3,
-                txToday, txWeek,
-                top5, retention
+                totalUsers, pendingUsers, blockedUsers, churnedUsers,
+                dau, wau, mau,
+                inactive3,
+                txToday, txWeek, txMonth,
+                avgExpense,
+                top5, topCats, retention
         );
     }
 
-    // ── DTOs ──────────────────────────────────────────────────────────
+    // ── Helpers ──────────────────────────────────────────────────────
+
+    private static BigDecimal toBD(Object v) {
+        if (v == null) return BigDecimal.ZERO;
+        if (v instanceof BigDecimal bd) return bd;
+        return new BigDecimal(v.toString());
+    }
+
+    private static long toLong(Object v) {
+        if (v == null) return 0L;
+        if (v instanceof Long l) return l;
+        return ((Number) v).longValue();
+    }
+
+    // ── DTOs ─────────────────────────────────────────────────────────
 
     public record ActivitySnapshot(
-            long totalUsers, long pendingUsers, long blockedUsers,
-            long activeToday, long activeWeek, long inactive3days,
-            long txToday, long txWeek,
-            List<UserActivity> top5,
+            long totalUsers, long pendingUsers, long blockedUsers, long churnedUsers,
+            long dau, long wau, long mau,
+            long inactive3days,
+            long txToday, long txWeek, long txMonth,
+            BigDecimal avgExpensePerUser,
+            List<UserActivity>  top5,
+            List<CategoryTrend> topCategories,
             List<UserRetention> retention
     ) {}
 
     public record UserActivity(String name, long txCount) {}
 
+    public record CategoryTrend(String label, BigDecimal total, long txCount) {}
+
     public record UserRetention(
             String name, String username,
-            LocalDate registeredAt,
+            java.time.LocalDate registeredAt,
             long txCount,
-            LocalDate lastActivity,
-            long daysAgo
+            java.time.LocalDate lastActivity,
+            long daysAgo,
+            boolean blockedBot
     ) {}
 }

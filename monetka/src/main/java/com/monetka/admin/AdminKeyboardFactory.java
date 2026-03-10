@@ -26,7 +26,8 @@ public final class AdminKeyboardFactory {
                         btn("🚫 Заблокированные",  "adm:blocked")))
                 .keyboardRow(row(btn("👥 Пользователи",     "adm:users"),
                         btn("📊 Статистика",        "adm:stats")))
-                .keyboardRow(row(btn("📈 Активность",        "adm:activity")))
+                .keyboardRow(row(btn("📈 Активность",        "adm:activity"),
+                        btn("📢 Рассылка",          "adm:broadcast")))
                 .keyboardRow(row(btn(modeLabel,              "adm:toggle_reg")))
                 .keyboardRow(row(btn("📁 Выгрузить список", "adm:export")))
                 .keyboardRow(row(btn("☢️ Опасная зона", "adm:wipe_1")))
@@ -88,6 +89,21 @@ public final class AdminKeyboardFactory {
     // ================================================================
     // Back button
     // ================================================================
+
+    public static InlineKeyboardMarkup broadcastConfirm() {
+        return InlineKeyboardMarkup.builder()
+                .keyboardRow(row(
+                        btn("✅ Отправить всем", "adm:broadcast_confirm"),
+                        btn("❌ Отмена",         "adm:broadcast_cancel")
+                ))
+                .build();
+    }
+
+    public static InlineKeyboardMarkup broadcastCancel() {
+        return InlineKeyboardMarkup.builder()
+                .keyboardRow(row(btn("❌ Отменить рассылку", "adm:broadcast_cancel")))
+                .build();
+    }
 
     public static InlineKeyboardMarkup backToMenu() {
         return InlineKeyboardMarkup.builder()
