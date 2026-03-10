@@ -97,5 +97,5 @@ public class User {
     void prePersist() { createdAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek")); }
 
     @PreUpdate
-    void preUpdate()  { updatedAt = LocalDateTime.now(); }
+    void preUpdate()  { updatedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek")); }
 }
