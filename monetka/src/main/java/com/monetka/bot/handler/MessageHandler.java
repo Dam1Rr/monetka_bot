@@ -208,17 +208,18 @@ public class MessageHandler {
         String[] reactions = {"✅", "💾", "📌"};
         String reaction = reactions[RND.nextInt(reactions.length)];
 
-        // Pace hint — one line showing cycle status
-        String paceHint = paydayService.getPaceHint(user).map(h -> "\n" + h).orElse("");
-
-        // Today's total after this expense
+        // Smart pace line — compare today vs average daily this month
         java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Bishkek"));
         java.time.LocalDateTime tFrom = today.atStartOfDay();
         java.time.LocalDateTime tTo   = today.plusDays(1).atStartOfDay();
         java.math.BigDecimal todayTotal = statisticsService.getMonthExpensesForPeriod(user, tFrom, tTo);
-        String todayLine = todayTotal != null && todayTotal.compareTo(java.math.BigDecimal.ZERO) > 0
-                ? "\n📊 Сегодня потрачено: *" + fmt(todayTotal) + "*"
-                : "";
+
+        java.time.LocalDateTime mFrom = today.withDayOfMonth(1).atStartOfDay();
+        java.math.BigDecimal monthTotal = statisticsService.getMonthExpensesForPeriod(user, mFrom, tTo);
+        int dayOfMonth = today.getDayOfMonth();
+        int daysInMonth = today.lengthOfMonth();
+
+        String paceLine = buildPaceLine(todayTotal, monthTotal, dayOfMonth, daysInMonth);
 
         bot.sendMessage(chatId,
                 reaction + " *Записал!*\n\n" +
@@ -226,7 +227,7 @@ public class MessageHandler {
                         "💸 −" + fmt(p.amount) + "\n" +
                         "🏷 " + cat + confNote + learnedNote + "\n" +
                         "💳 Баланс: *" + fmt(user.getBalance()) + "*" +
-                        todayLine + paceHint,
+                        paceLine,
                 KeyboardFactory.mainMenu());
 
         // Budget goal alert — send after main confirmation if threshold crossed
@@ -361,6 +362,47 @@ public class MessageHandler {
     // ================================================================
     // Helpers
     // ================================================================
+
+    /**
+     * Одна умная строка после каждой траты.
+     * Сравнивает сегодня с обычным днём и показывает прогноз.
+     */
+    private String buildPaceLine(java.math.BigDecimal todayTotal,
+                                 java.math.BigDecimal monthTotal,
+                                 int dayOfMonth, int daysInMonth) {
+        if (todayTotal == null || todayTotal.compareTo(java.math.BigDecimal.ZERO) == 0)
+            return "";
+        if (monthTotal == null || monthTotal.compareTo(java.math.BigDecimal.ZERO) == 0)
+            return "";
+
+        // Средний день за месяц
+        java.math.BigDecimal avgDay = monthTotal.divide(
+                java.math.BigDecimal.valueOf(dayOfMonth), 0, java.math.RoundingMode.HALF_UP);
+
+        // Прогноз на месяц по среднему темпу
+        java.math.BigDecimal projected = avgDay.multiply(java.math.BigDecimal.valueOf(daysInMonth));
+        String projStr = String.format("%,.0f", projected);
+
+        // Сравниваем сегодня с обычным днём
+        double ratio = todayTotal.divide(avgDay.compareTo(java.math.BigDecimal.ZERO) > 0
+                ? avgDay : java.math.BigDecimal.ONE, 2, java.math.RoundingMode.HALF_UP).doubleValue();
+
+        String line;
+        if (dayOfMonth == 1 || avgDay.compareTo(java.math.BigDecimal.valueOf(50)) < 0) {
+            // Первый день месяца или слишком мало данных — просто прогноз
+            java.math.BigDecimal simpleProjected = todayTotal.multiply(java.math.BigDecimal.valueOf(daysInMonth));
+            line = "\n📊 Если каждый день так — *~" + String.format("%,.0f", simpleProjected) + "* за месяц";
+        } else if (ratio <= 0.5) {
+            line = "\n🟢 Экономный день — месяц идёт на *~" + projStr + "*";
+        } else if (ratio <= 1.3) {
+            line = "\n🟢 Норм темп — если так весь месяц, потратишь *~" + projStr + "*";
+        } else if (ratio <= 2.0) {
+            line = "\n🟡 Горячий день — месяц пока на *~" + projStr + "*";
+        } else {
+            line = "\n🔴 Много сегодня — месяц пока на *~" + projStr + "*";
+        }
+        return line;
+    }
 
     private ParseResult parse(String text) {
         if (text == null || text.isBlank()) return null;
