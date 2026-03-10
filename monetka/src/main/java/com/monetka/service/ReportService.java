@@ -169,7 +169,7 @@ public class ReportService {
                 String catLabel = tx.getCategory() != null ? tx.getCategory().getDisplayName() : "—";
                 sb.append("▸ ").append(tx.getDescription())
                         .append("  −").append(fmt(tx.getAmount()))
-                        .append("  · ").append(tx.getCreatedAt().atZone(java.time.ZoneOffset.UTC).withZoneSameInstant(BISHKEK).format(timeFmt)).append("\n");
+                        .append("  · ").append(tx.getCreatedAt().format(timeFmt)).append("\n");
             }
         }
         return sb.toString();
@@ -285,8 +285,7 @@ public class ReportService {
         // Считаем максимальный день
         java.util.Map<java.time.LocalDate, BigDecimal> byDay = new java.util.HashMap<>();
         for (Transaction tx : txs) {
-            java.time.LocalDate d = tx.getCreatedAt().atZone(java.time.ZoneOffset.UTC)
-                    .withZoneSameInstant(BISHKEK).toLocalDate();
+            java.time.LocalDate d = tx.getCreatedAt().toLocalDate();
             byDay.merge(d, tx.getAmount(), BigDecimal::add);
         }
         for (java.util.Map.Entry<java.time.LocalDate, BigDecimal> e : byDay.entrySet()) {

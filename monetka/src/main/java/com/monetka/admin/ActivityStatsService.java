@@ -75,12 +75,18 @@ public class ActivityStatsService {
         }
 
         // ── Top 5 users this week ─────────────────────────────────────
-        List<Object[]> topRaw = transactionRepository.topUsersByActivityInPeriod(weekStart, now);
+        List<Object[]> topRaw;
+        try { topRaw = transactionRepository.topUsersByActivityInPeriod(weekStart, now); }
+        catch (Exception e) { topRaw = java.util.Collections.emptyList(); }
         List<UserActivity> top5 = new ArrayList<>();
         for (int i = 0; i < Math.min(5, topRaw.size()); i++) {
-            User u   = (User) topRaw.get(i)[0];
-            long cnt = (Long) topRaw.get(i)[1];
-            top5.add(new UserActivity(u.getDisplayName(), cnt));
+            try {
+                Object[] row = topRaw.get(i);
+                if (row.length < 2 || row[0] == null) continue;
+                User u   = (User) row[0];
+                long cnt = toLong(row[1]);
+                top5.add(new UserActivity(u.getDisplayName(), cnt));
+            } catch (Exception ignored) {}
         }
 
         // ── Top categories this month (global) ───────────────────────
@@ -107,9 +113,9 @@ public class ActivityStatsService {
             long txCount = 0;
             LocalDateTime lastTx = null;
             for (Object[] row : summary) {
-                if (((User) row[0]).getId().equals(u.getId())) {
-                    txCount = (Long) row[1];
-                    lastTx  = (LocalDateTime) row[2];
+                if (row.length > 0 && row[0] instanceof User ru && ru.getId().equals(u.getId())) {
+                    txCount = row.length > 1 ? toLong(row[1]) : 0;
+                    lastTx  = row.length > 2 && row[2] instanceof LocalDateTime lt ? lt : null;
                     break;
                 }
             }

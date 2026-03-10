@@ -222,7 +222,7 @@ public class MessageHandler {
 
         bot.sendMessage(chatId,
                 reaction + " *Записал!*\n\n" +
-                        "📝 " + p.description + "\n" +
+                        "📝 " + com.monetka.bot.MonetkaBot.esc(p.description) + "\n" +
                         "💸 −" + fmt(p.amount) + "\n" +
                         "🏷 " + cat + confNote + learnedNote + "\n" +
                         "💳 Баланс: *" + fmt(user.getBalance()) + "*" +
@@ -274,7 +274,7 @@ public class MessageHandler {
 
         bot.sendMessage(chatId,
                 pick("🎉 *Доход записан!*", "💰 *Зафиксировал!*", "✅ *Добавлено!*") + "\n\n" +
-                        "📝 " + p.description + "\n" +
+                        "📝 " + com.monetka.bot.MonetkaBot.esc(p.description) + "\n" +
                         "💰 +" + fmt(p.amount) + "\n" +
                         "💳 Баланс: *" + fmt(user.getBalance()) + "*" + cycleHint,
                 KeyboardFactory.mainMenu());

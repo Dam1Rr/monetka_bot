@@ -1,8 +1,11 @@
 package com.monetka.bot;
 
 import com.monetka.config.BotProperties;
+import com.monetka.model.User;
+import com.monetka.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramWebhookBot;
 import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
@@ -16,19 +19,26 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboard;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.io.ByteArrayInputStream;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Optional;
 
 @Component
 public class MonetkaBot extends TelegramWebhookBot {
 
     private static final Logger logger = LoggerFactory.getLogger(MonetkaBot.class);
+    private static final ZoneId BISHKEK = ZoneId.of("Asia/Bishkek");
 
-    private final BotProperties    botProperties;
+    private final BotProperties  botProperties;
     private final UpdateDispatcher dispatcher;
+    private final UserRepository userRepository;
 
-    public MonetkaBot(BotProperties botProperties, UpdateDispatcher dispatcher) {
+    public MonetkaBot(BotProperties botProperties, UpdateDispatcher dispatcher,
+                      @Lazy UserRepository userRepository) {
         super(botProperties.getToken());
-        this.botProperties = botProperties;
-        this.dispatcher    = dispatcher;
+        this.botProperties  = botProperties;
+        this.dispatcher     = dispatcher;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -40,6 +50,19 @@ public class MonetkaBot extends TelegramWebhookBot {
     @Override public String getBotPath()     { return "/webhook"; }
     @Override public String getBotUsername() { return botProperties.getUsername(); }
 
+    // ── Markdown safety ──────────────────────────────────────────────
+    /** Escape user-provided text so Telegram Markdown doesn't break */
+    public static String esc(String text) {
+        if (text == null) return "";
+        return text.replace("\\", "\\\\")
+                .replace("_", "\\_")
+                .replace("*", "\\*")
+                .replace("[", "\\[")
+                .replace("`", "\\`");
+    }
+
+    // ── Send helpers ──────────────────────────────────────────────────
+
     public void sendText(long chatId, String text) {
         sendMessage(chatId, text, null);
     }
@@ -50,11 +73,11 @@ public class MonetkaBot extends TelegramWebhookBot {
         msg.setText(text);
         msg.setParseMode("Markdown");
         msg.setReplyMarkup(keyboard);
-        try { execute(msg); } catch (TelegramApiException e) { logger.error("sendMarkdown error", e); }
+        doExecute(chatId, msg);
     }
 
     public void sendMarkdown(long chatId, String text) {
-        doExecute(SendMessage.builder()
+        doExecute(chatId, SendMessage.builder()
                 .chatId(String.valueOf(chatId))
                 .text(text)
                 .parseMode("Markdown")
@@ -67,16 +90,9 @@ public class MonetkaBot extends TelegramWebhookBot {
                 .text(text)
                 .parseMode("Markdown");
         if (keyboard != null) builder.replyMarkup(keyboard);
-        doExecute(builder.build());
+        doExecute(chatId, builder.build());
     }
 
-    /**
-     * Send a file (e.g. XLSX) as a document to a chat.
-     * @param chatId   recipient
-     * @param data     raw file bytes
-     * @param filename filename shown in Telegram (e.g. "users.xlsx")
-     * @param caption  optional caption text (Markdown)
-     */
     public void sendDocument(long chatId, byte[] data, String filename, String caption) {
         try {
             SendDocument doc = SendDocument.builder()
@@ -105,11 +121,55 @@ public class MonetkaBot extends TelegramWebhookBot {
         }
     }
 
-    private void doExecute(SendMessage message) {
+    // ── Core executor with churn detection ───────────────────────────
+
+    private void doExecute(long chatId, SendMessage message) {
         try {
             execute(message);
+            markSeen(chatId);
         } catch (TelegramApiException e) {
-            logger.error("Failed to send message to {}: {}", message.getChatId(), e.getMessage());
+            handleSendError(chatId, e);
+        }
+    }
+
+    private void handleSendError(long chatId, TelegramApiException e) {
+        String msg = e.getMessage() != null ? e.getMessage() : "";
+        if (msg.contains("403") || msg.contains("bot was blocked") || msg.contains("user is deactivated")) {
+            logger.info("User {} blocked the bot — marking as churned", chatId);
+            markChurned(chatId);
+        } else {
+            logger.error("Failed to send to {}: {}", chatId, msg);
+        }
+    }
+
+    private void markChurned(long chatId) {
+        try {
+            userRepository.findByTelegramId(chatId).ifPresent(u -> {
+                if (!u.isBlockedBot()) {
+                    u.setBlockedBot(true);
+                    u.setBlockedAt(LocalDateTime.now(BISHKEK));
+                    userRepository.save(u);
+                }
+            });
+        } catch (Exception ex) {
+            logger.warn("Could not mark {} as churned: {}", chatId, ex.getMessage());
+        }
+    }
+
+    public void markSeen(long chatId) {
+        try {
+            userRepository.findByTelegramId(chatId).ifPresent(u -> {
+                LocalDateTime now = LocalDateTime.now(BISHKEK);
+                boolean stale = u.getLastSeenAt() == null ||
+                        u.getLastSeenAt().plusHours(1).isBefore(now);
+                if (stale) {
+                    if (u.isBlockedBot()) { u.setBlockedBot(false); u.setBlockedAt(null); }
+                    u.setLastSeenAt(now);
+                    userRepository.save(u);
+                }
+            });
+        } catch (Exception ex) {
+            logger.warn("Could not update last_seen for {}: {}", chatId, ex.getMessage());
         }
     }
 }

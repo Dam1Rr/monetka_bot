@@ -54,6 +54,29 @@ public class TransactionService {
         return transactionRepository.save(tx);
     }
 
+    /** Save expense with explicit category — skips auto-detection */
+    @Transactional
+    public Transaction addExpense(User user, BigDecimal amount, String description,
+                                  com.monetka.model.Category category,
+                                  com.monetka.model.Subcategory subcategory) {
+        Transaction tx = new Transaction();
+        tx.setUser(user);
+        tx.setAmount(amount);
+        tx.setDescription(description);
+        tx.setType(com.monetka.model.enums.TransactionType.EXPENSE);
+        tx.setCategory(category);
+        tx.setSubcategory(subcategory);
+
+        user.setBalance(user.getBalance().subtract(amount));
+        userRepository.save(user);
+
+        log.info("Expense (manual cat): user={} amount={} category={}",
+                user.getTelegramId(), amount,
+                category != null ? category.getName() : "—");
+
+        return transactionRepository.save(tx);
+    }
+
     @Transactional
     public Transaction addIncome(User user, BigDecimal amount, String description) {
         Transaction tx = new Transaction();

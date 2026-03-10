@@ -159,8 +159,7 @@ public class MonthlyReportScheduler {
 
         bot.sendMessage(user.getTelegramId(), sb.toString(), KeyboardFactory.mainMenu());
 
-        // Психологический портрет — отправляем через 3 секунды после отчёта
-        try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
+        // Психологический портрет — сразу после отчёта
         String portrait = monthlyPortrait.build(user);
         if (portrait != null) {
             bot.sendMarkdown(user.getTelegramId(), portrait);

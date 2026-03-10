@@ -166,20 +166,18 @@ public class CallbackHandler {
             bot.sendMessage(chatId, "Что-то пошло не так. Попробуй снова.", KeyboardFactory.mainMenu()); return;
         }
         BigDecimal amount = new BigDecimal(amtStr);
-        Transaction tx = transactionService.addExpense(user, amount, desc);
+        // Use overload that accepts explicit category — skips unnecessary auto-detection
+        Transaction tx = transactionService.addExpense(user, amount, desc, category, subcategory);
         String keyword = detectionService.normalize(desc);
         if (!keyword.isBlank()) {
             detectionService.learnKeyword(keyword.split("\\s+")[0], category, subcategory, user.getTelegramId());
         }
-        tx.setCategory(category);
-        tx.setSubcategory(subcategory);
-        transactionRepository.save(tx);
         stateService.reset(telegramId);
         String catDisplay = subcategory != null
                 ? category.getDisplayName() + " → " + subcategory.getDisplayName()
                 : category.getDisplayName();
         bot.sendMessage(chatId,
-                "✅ *Расход сохранён!*\n\n📝 " + desc + "\n💸 −" + fmt(amount) +
+                "✅ *Расход сохранён!*\n\n📝 " + com.monetka.bot.MonetkaBot.esc(desc) + "\n💸 −" + fmt(amount) +
                         "\n🏷 " + catDisplay + "\n💳 Баланс: " + fmt(user.getBalance()) +
                         "\n\n💡 _Запомнил! В следующий раз определю автоматически._",
                 KeyboardFactory.mainMenu());
@@ -320,9 +318,22 @@ public class CallbackHandler {
                         "\uD83D\uDDD3 *Выбери период*\n\n_Теперь выбери конец периода:_",
                         KeyboardFactory.calendarMonth(year, month, day, null));
             } else {
+                // Parse stored start — only use same month
                 String[] sp = stored.split(":");
+                int sYear = Integer.parseInt(sp[0]);
+                int sMonth = Integer.parseInt(sp[1]);
                 int startDay = Integer.parseInt(sp[2]);
                 int endDay = day;
+                // If different month selected as end — force same month, swap if needed
+                if (sYear != year || sMonth != month) {
+                    // Reset to fresh start selection in new month
+                    stateService.putData(user.getTelegramId(), "cal_start", year + ":" + month + ":" + day);
+                    stateService.putData(user.getTelegramId(), "cal_end", "");
+                    bot.sendMarkdown(chatId,
+                            "\uD83D\uDDD3 *Выбери период*\n\n_Теперь выбери конец периода:_",
+                            KeyboardFactory.calendarMonth(year, month, day, null));
+                    return;
+                }
                 if (endDay < startDay) { int t = startDay; startDay = endDay; endDay = t; }
                 stateService.putData(user.getTelegramId(), "cal_end", year + ":" + month + ":" + endDay);
                 bot.sendMarkdown(chatId,
