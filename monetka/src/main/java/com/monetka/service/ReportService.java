@@ -103,8 +103,6 @@ public class ReportService {
                             0, java.math.RoundingMode.HALF_UP);
             sb.append("\uD83D\uDCC5 \u041e\u0441\u0442\u0430\u043b\u043e\u0441\u044c \u0434\u043d\u0435\u0439: *")
                     .append(s.daysLeft).append("*\n");
-            sb.append("\uD83D\uDCB5 \u041e\u0441\u0442\u0430\u0442\u043e\u043a: *")
-                    .append(fmt(s.remaining)).append("*\n");
             sb.append("\uD83D\uDCCA \u0417\u0430\u0432\u0442\u0440\u0430 \u043c\u043e\u0436\u043d\u043e: *")
                     .append(fmt(tomorrowBudget)).append("/\u0434\u0435\u043d\u044c*");
         });
@@ -341,9 +339,8 @@ public class ReportService {
             sb.append("\uD83D\uDCB0 Заработок:  *+").append(fmt(income)).append("*\n");
         sb.append("\uD83D\uDCB8 Расходы:    *\u2212").append(fmt(expenses)).append("*\n");
         if (income.compareTo(BigDecimal.ZERO) > 0) {
-            String sign = diff.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "";
             String icon = diff.compareTo(BigDecimal.ZERO) >= 0 ? "\u2705" : "\u26A0\uFE0F";
-            sb.append(icon).append(" Осталось:   *").append(sign).append(fmt(diff)).append("*\n");
+            sb.append(icon).append(" Осталось:   *").append(fmt(diff)).append("*\n");
         }
         sb.append("\n");
         sb.append("\uD83D\uDCCA Каждый день тратишь в среднем *").append(fmt(dailyAvg)).append("*\n");
@@ -399,12 +396,12 @@ public class ReportService {
                         .divide(income, 0, java.math.RoundingMode.HALF_UP).intValue();
                 BigDecimal saving = income.subtract(projected);
                 if (spendPct <= 85) {
-                    sb.append("\uD83D\uDFE2 К концу месяца останется *~").append(fmt(saving)).append("*\n");
+                    sb.append("\uD83D\uDFE2 К концу месяца у тебя будет примерно *").append(fmt(saving)).append("*\n");
                 } else if (spendPct <= 100) {
-                    sb.append("\uD83D\uDFE1 К концу месяца останется *~").append(fmt(saving)).append("* — следи за темпом\n");
+                    sb.append("\uD83D\uDFE1 К концу месяца у тебя будет примерно *").append(fmt(saving)).append("* — следи за темпом\n");
                 } else {
                     BigDecimal over = projected.subtract(income);
-                    sb.append("\uD83D\uDD34 К концу месяца *минус ~").append(fmt(over)).append("* — нужно притормозить\n");
+                    sb.append("\uD83D\uDD34 К концу месяца уйдёшь в минус на *").append(fmt(over)).append("* — нужно притормозить\n");
                 }
             } else {
                 sb.append("\uD83D\uDD2E К концу месяца потратишь *~").append(fmt(projected)).append("*\n");
