@@ -187,46 +187,68 @@ public class ReportService {
         LocalDate now  = LocalDate.now(BISHKEK);
         LocalDateTime from = now.minusDays(6).atStartOfDay();
         LocalDateTime to   = now.plusDays(1).atStartOfDay();
+        LocalDateTime prevFrom = from.minusDays(7);
 
-        BigDecimal total = safe(transactionRepository.sumByUserAndTypeAndPeriod(user, TransactionType.EXPENSE, from, to));
+        BigDecimal total     = safe(transactionRepository.sumByUserAndTypeAndPeriod(user, TransactionType.EXPENSE, from, to));
+        BigDecimal prevTotal = safe(transactionRepository.sumByUserAndTypeAndPeriod(user, TransactionType.EXPENSE, prevFrom, from));
         List<CategoryStats> cats = statisticsService.getDetailedExpenses(user, from, to);
+        List<Transaction> weekTxs = transactionRepository.findByUserAndTypeAndPeriod(user, TransactionType.EXPENSE, from, to);
+
+        // Peak day
+        java.util.Map<LocalDate, BigDecimal> byDay = new java.util.LinkedHashMap<>();
+        for (Transaction tx : weekTxs) {
+            LocalDate d = tx.getCreatedAt().atZone(java.time.ZoneOffset.UTC).withZoneSameInstant(BISHKEK).toLocalDate();
+            byDay.merge(d, tx.getAmount(), BigDecimal::add);
+        }
+        LocalDate peakDay = null;
+        BigDecimal peakAmt = BigDecimal.ZERO;
+        for (java.util.Map.Entry<LocalDate, BigDecimal> e : byDay.entrySet()) {
+            if (e.getValue().compareTo(peakAmt) > 0) { peakAmt = e.getValue(); peakDay = e.getKey(); }
+        }
 
         StringBuilder sb = new StringBuilder();
-        sb.append("\uD83D\uDCC6 *Неделя — ")
-                .append(now.minusDays(6).format(DateTimeFormatter.ofPattern("d MMM", new java.util.Locale("ru"))))
-                .append("–")
-                .append(now.format(DateTimeFormatter.ofPattern("d MMM", new java.util.Locale("ru"))))
+        DateTimeFormatter dmm = DateTimeFormatter.ofPattern("d MMM", new java.util.Locale("ru"));
+        sb.append("\uD83D\uDCC6 *\u041d\u0435\u0434\u0435\u043b\u044f \u2014 ")
+                .append(now.minusDays(6).format(dmm)).append("\u2013").append(now.format(dmm))
                 .append("*\n\n");
 
         if (total.compareTo(BigDecimal.ZERO) == 0) {
-            sb.append("Расходов за неделю нет 🌱");
+            sb.append("\u0420\u0430\u0441\u0445\u043e\u0434\u043e\u0432 \u0437\u0430 \u043d\u0435\u0434\u0435\u043b\u044e \u043d\u0435\u0442 \uD83C\uDF31");
             return sb.toString();
         }
 
-        long days = 7;
-        BigDecimal avg = total.divide(java.math.BigDecimal.valueOf(days), 0, java.math.RoundingMode.HALF_UP);
-        sb.append("💸 Потрачено: *−").append(fmt(total)).append("*\n");
-        sb.append("📊 В среднем: *").append(fmt(avg)).append("/день*\n");
+        BigDecimal avg = total.divide(java.math.BigDecimal.valueOf(7), 0, RoundingMode.HALF_UP);
+        sb.append("\uD83D\uDCB8 *").append(fmt(total)).append("*  \u2022  ").append(fmt(avg)).append("/\u0434\u0435\u043d\u044c\n");
+
+        if (prevTotal.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal delta = total.subtract(prevTotal);
+            int pct = delta.abs().multiply(java.math.BigDecimal.valueOf(100))
+                    .divide(prevTotal, 0, RoundingMode.HALF_UP).intValue();
+            if (delta.compareTo(BigDecimal.ZERO) > 0)
+                sb.append("_\u041d\u0430 ").append(pct).append("% \u0431\u043e\u043b\u044c\u0448\u0435 \u043f\u0440\u043e\u0448\u043b\u043e\u0439 \u043d\u0435\u0434\u0435\u043b\u0438_\n");
+            else
+                sb.append("_\u041d\u0430 ").append(pct).append("% \u043c\u0435\u043d\u044c\u0448\u0435 \u043f\u0440\u043e\u0448\u043b\u043e\u0439 \u043d\u0435\u0434\u0435\u043b\u0438 \u2705_\n");
+        }
 
         if (!cats.isEmpty()) {
-            sb.append("\n*Топ категорий:*\n");
+            sb.append("\n*\u041d\u0430 \u0447\u0442\u043e \u0443\u0448\u043b\u043e:*\n");
             int show = Math.min(cats.size(), 5);
             for (int i = 0; i < show; i++) {
-                CategoryStats c = cats.get(i);
-                sb.append("\n").append(i + 1).append(". ").append(c.label)
-                        .append("  *").append(fmt(c.total)).append("*")
-                        .append("  _(").append(c.percent).append("%)_\n");
-                for (StatisticsService.SubcategoryAmount sub : c.subcats) {
-                    sb.append("   ├ ").append(sub.name).append(" — ").append(fmt(sub.amount)).append("\n");
+                CategoryStats cat = cats.get(i);
+                sb.append(cat.label).append("  *").append(fmt(cat.total)).append("*  _").append(cat.percent).append("%_\n");
+                int subShow = Math.min(cat.subcats.size(), 3);
+                for (int j = 0; j < subShow; j++) {
+                    StatisticsService.SubcategoryAmount sub = cat.subcats.get(j);
+                    String prefix = (j == subShow - 1) ? "   \u2514 " : "   \u251C ";
+                    sb.append(prefix).append(sub.name).append(" \u2014 ").append(fmt(sub.amount)).append("\n");
                 }
             }
         }
 
-        // Day-by-day activity bar
-        sb.append("\n*Активность по дням:*\n");
-        String[] dayNames = {"Пн","Вт","Ср","Чт","Пт","Сб","Вс"};
-        BigDecimal maxDay = BigDecimal.ONE;
+        sb.append("\n*\u041f\u043e \u0434\u043d\u044f\u043c:*\n");
+        String[] dayNames = {"\u041f\u043d","\u0412\u0442","\u0421\u0440","\u0427\u0442","\u041f\u0442","\u0421\u0431","\u0412\u0441"};
         List<BigDecimal> dayTotals = new java.util.ArrayList<>();
+        BigDecimal maxDay = BigDecimal.ONE;
         for (int i = 6; i >= 0; i--) {
             LocalDate d = now.minusDays(i);
             BigDecimal dayAmt = safe(transactionRepository.sumByUserAndTypeAndPeriod(
@@ -238,13 +260,21 @@ public class ReportService {
             LocalDate d = now.minusDays(6 - i);
             BigDecimal amt = dayTotals.get(i);
             int barLen = maxDay.compareTo(BigDecimal.ZERO) > 0
-                    ? amt.multiply(java.math.BigDecimal.valueOf(8)).divide(maxDay, 0, java.math.RoundingMode.HALF_UP).intValue()
-                    : 0;
-            String bar = "█".repeat(barLen) + "░".repeat(8 - barLen);
+                    ? amt.multiply(java.math.BigDecimal.valueOf(8)).divide(maxDay, 0, RoundingMode.HALF_UP).intValue() : 0;
+            String bar = "\u2588".repeat(barLen) + "\u2591".repeat(8 - barLen);
             String dn = dayNames[d.getDayOfWeek().getValue() - 1];
+            boolean isPeak = peakDay != null && d.equals(peakDay) && peakAmt.compareTo(BigDecimal.valueOf(500)) > 0;
             sb.append(dn).append("  ").append(bar).append("  ")
-                    .append(amt.compareTo(BigDecimal.ZERO) > 0 ? fmt(amt) : "—").append("\n");
+                    .append(amt.compareTo(BigDecimal.ZERO) > 0 ? fmt(amt) : "\u2014")
+                    .append(isPeak ? " \uD83D\uDD34" : "").append("\n");
         }
+
+        String aiInsight = aiInsightService.generateWeekInsight(
+                cats, total, prevTotal, peakDay, peakAmt, avg, weekTxs);
+        if (aiInsight != null && !aiInsight.isBlank()) {
+            sb.append("\n\uD83E\uDDE0 ").append(aiInsight);
+        }
+
         return sb.toString();
     }
 

@@ -66,6 +66,54 @@ public class AiInsightService {
         }
     }
 
+    public String generateWeekInsight(
+            List<CategoryStats> cats,
+            BigDecimal total,
+            BigDecimal prevTotal,
+            java.time.LocalDate peakDay,
+            BigDecimal peakAmt,
+            BigDecimal avgPerDay,
+            List<Transaction> txs
+    ) {
+        if (apiKey == null || apiKey.isBlank()) return null;
+        try {
+            StringBuilder prompt = new StringBuilder();
+            prompt.append("Ты — Monetka, финансовый помощник в Telegram для Бишкека (Кыргызстан).\n");
+            prompt.append("Валюта: сом. Пиши на русском, коротко и по делу, как умный друг.\n");
+            prompt.append("Telegram Markdown: *жирный*. Без заголовков #. Максимум 3 строки.\n\n");
+            prompt.append("ДАННЫЕ ЗА НЕДЕЛЮ:\n");
+            prompt.append("- Потрачено: ").append(total).append(" сом\n");
+            if (prevTotal.compareTo(BigDecimal.ZERO) > 0)
+                prompt.append("- Прошлая неделя: ").append(prevTotal).append(" сом\n");
+            prompt.append("- Среднее/день: ").append(avgPerDay).append(" сом\n");
+            if (peakDay != null && peakAmt.compareTo(BigDecimal.ZERO) > 0)
+                prompt.append("- Пиковый день: ").append(peakDay).append(" = ").append(peakAmt).append(" сом\n");
+            if (!cats.isEmpty()) {
+                prompt.append("- Категории:\n");
+                cats.stream().limit(4).forEach(c ->
+                        prompt.append("  ").append(c.label).append(": ").append(c.total).append(" (").append(c.percent).append("%)\n"));
+            }
+            // Top descriptions
+            java.util.Map<String, BigDecimal> descMap = new java.util.LinkedHashMap<>();
+            for (Transaction tx : txs) {
+                String d = tx.getDescription() == null ? "?" : tx.getDescription();
+                descMap.merge(d, tx.getAmount(), BigDecimal::add);
+            }
+            descMap.entrySet().stream()
+                    .sorted((a,b) -> b.getValue().compareTo(a.getValue()))
+                    .limit(4)
+                    .forEach(e -> prompt.append("  • ").append(e.getKey()).append(": ").append(e.getValue()).append("\n"));
+
+            prompt.append("\nЗАДАЧА: 1-2 предложения. Замечай что необычное или важное. ");
+            prompt.append("Конкретная цифра обязательна. Не банальщина.\n");
+
+            return callClaude(prompt.toString());
+        } catch (Exception e) {
+            log.warn("AI week insight failed: {}", e.getMessage());
+            return null;
+        }
+    }
+
     private String buildPrompt(
             List<CategoryStats> cats,
             BigDecimal income,

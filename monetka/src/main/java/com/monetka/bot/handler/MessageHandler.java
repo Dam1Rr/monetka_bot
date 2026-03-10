@@ -121,10 +121,29 @@ public class MessageHandler {
             case "💸 Расход"  -> startExpense(chatId, telegramId, bot);
             case "💰 Доход"   -> startIncome(chatId, telegramId, bot);
             case "📅 Сегодня" -> bot.sendMarkdown(chatId, reportService.buildTodayStats(user), KeyboardFactory.periodPicker());
-            case "📆 Неделя"  -> bot.sendMarkdown(chatId, reportService.buildWeekStats(user),  KeyboardFactory.periodPicker());
+            case "📆 Неделя"  -> {
+                org.telegram.telegrambots.meta.api.methods.send.SendMessage loadMsg =
+                        new org.telegram.telegrambots.meta.api.methods.send.SendMessage();
+                loadMsg.setChatId(chatId);
+                loadMsg.setText("⏳ _Анализирую неделю..._");
+                loadMsg.enableMarkdown(true);
+                int weekLoadId = -1;
+                try { weekLoadId = bot.execute(loadMsg).getMessageId(); } catch (Exception ignored) {}
+                String weekText = reportService.buildWeekStats(user);
+                if (weekLoadId > 0) bot.editMessage(chatId, weekLoadId, weekText, KeyboardFactory.periodPicker());
+                else bot.sendMarkdown(chatId, weekText, KeyboardFactory.periodPicker());
+            }
             case "🗓 Месяц"   -> {
+                org.telegram.telegrambots.meta.api.methods.send.SendMessage loadMsg =
+                        new org.telegram.telegrambots.meta.api.methods.send.SendMessage();
+                loadMsg.setChatId(chatId);
+                loadMsg.setText("⏳ _Считаю цифры и думаю над советом..._");
+                loadMsg.enableMarkdown(true);
+                int monthLoadId = -1;
+                try { monthLoadId = bot.execute(loadMsg).getMessageId(); } catch (Exception ignored) {}
                 String monthText = reportService.buildMonthStats(user);
-                bot.sendMarkdown(chatId, monthText, KeyboardFactory.periodPicker());
+                if (monthLoadId > 0) bot.editMessage(chatId, monthLoadId, monthText, KeyboardFactory.periodPicker());
+                else bot.sendMarkdown(chatId, monthText, KeyboardFactory.periodPicker());
             }
             case "🎯 Лимиты"  -> overviewHandler.showGoals(user, chatId, bot);
             case "📊 Обзор"   -> overviewHandler.showMain(user, chatId, bot);
