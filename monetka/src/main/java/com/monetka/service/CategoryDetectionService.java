@@ -27,6 +27,12 @@ public class CategoryDetectionService {
     private final Map<String, Subcategory> keywordIndex = new HashMap<>();
     private Category defaultCategory;
 
+    // AiInsightService инжектируется через setter чтобы избежать circular dependency
+    // CategoryDetectionService ← MessageHandler ← AiInsightService (если через конструктор)
+    private AiInsightService aiInsightService;
+
+    public void setAiInsightService(AiInsightService ai) { this.aiInsightService = ai; }
+
     public CategoryDetectionService(CategoryRepository categoryRepository,
                                     SubcategoryRepository subcategoryRepository,
                                     LearnedKeywordRepository learnedKeywordRepository) {
@@ -112,6 +118,27 @@ public class CategoryDetectionService {
             boolean isDefault = best.subcategory.getCategory().isDefault();
             return new DetectionResult(best.subcategory.getCategory(), best.subcategory,
                     best.confidence, best.token, false, isDefault);
+        }
+
+        // 6. AI категоризация — только если всё выше не сработало
+        if (aiInsightService != null) {
+            try {
+                List<String> catNames = categoryRepository.findAll().stream()
+                        .map(Category::getName).collect(java.util.stream.Collectors.toList());
+                AiInsightService.AiCategory aiResult = aiInsightService.detectCategory(text, catNames);
+                if (aiResult != null && aiResult.confidence >= 0.60) {
+                    // Ищем категорию по имени
+                    for (Category cat : categoryRepository.findAll()) {
+                        if (cat.getName().equalsIgnoreCase(aiResult.category)) {
+                            boolean isDefault = cat.isDefault();
+                            return new DetectionResult(cat, null, aiResult.confidence,
+                                    normalized, false, isDefault);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("AI category step failed: {}", e.getMessage());
+            }
         }
 
         return defaultResult();

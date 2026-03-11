@@ -17,6 +17,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.*;
+import java.util.List;
 
 /**
  * AI-powered financial insights via Claude API.
@@ -200,6 +201,119 @@ public class AiInsightService {
         sb.append("Будь честным и точным.\n");
 
         return sb.toString();
+    }
+
+
+    // ================================================================
+    // AI категоризация расходов
+    // ================================================================
+
+    /**
+     * Определяет категорию расхода через Claude Haiku.
+     * Возвращает AiCategory или null если API недоступен / не уверен.
+     * SAFE: любая ошибка → тихо возвращает null, категоризация падает в keyword-based.
+     */
+    public AiCategory detectCategory(String expenseText, List<String> availableCategories) {
+        if (apiKey == null || apiKey.isBlank()) return null;
+        if (expenseText == null || expenseText.isBlank()) return null;
+        try {
+            String categoriesList = String.join(", ", availableCategories);
+            String prompt = "Ты помощник по учёту расходов в Кыргызстане (валюта: сом).\n" +
+                    "Определи категорию для расхода пользователя.\n" +
+                    "Доступные категории: " + categoriesList + "\n\n" +
+                    "Ответь СТРОГО в формате JSON (без markdown, без пояснений):\n" +
+                    "{\"category\":\"...\"," +
+                    "\"confidence\":0.0}\n\n" +
+                    "Расход: \"" + expenseText + "\"\n\n" +
+                    "Правила:\n" +
+                    "- confidence от 0.0 до 1.0 (насколько уверен)\n" +
+                    "- Если не уверен — ставь confidence 0.3 и ниже\n" +
+                    "- Кредиты/займы/рассрочка/мкк → категория Кредиты/Займы\n" +
+                    "- Только JSON, ничего больше";
+
+            String raw = callClaudeWithSystem(
+                    "Ты отвечаешь ТОЛЬКО в формате JSON. Никакого текста кроме JSON.",
+                    prompt,
+                    80
+            );
+            if (raw == null || raw.isBlank()) return null;
+            return parseAiCategory(raw);
+        } catch (Exception e) {
+            log.warn("AI category detection failed for '{}': {}", expenseText, e.getMessage());
+            return null;
+        }
+    }
+
+    private AiCategory parseAiCategory(String json) {
+        try {
+            String clean = json.trim()
+                    .replaceAll("```json", "").replaceAll("```", "").trim();
+            String cat = extractJsonField(clean, "category");
+            String confStr = extractJsonField(clean, "confidence");
+            if (cat == null || cat.isBlank()) return null;
+            double conf = 0.5;
+            try { conf = Double.parseDouble(confStr); } catch (Exception ignored) {}
+            return new AiCategory(cat.trim(), conf);
+        } catch (Exception e) {
+            log.warn("Failed to parse AI category JSON: {}", json);
+            return null;
+        }
+    }
+
+    private String extractJsonField(String json, String field) {
+        String key = "\"" + field + "\"";
+        int idx = json.indexOf(key);
+        if (idx < 0) return null;
+        int colon = json.indexOf(":", idx + key.length());
+        if (colon < 0) return null;
+        int start = colon + 1;
+        // skip whitespace
+        while (start < json.length() && json.charAt(start) == ' ') start++;
+        if (start >= json.length()) return null;
+        if (json.charAt(start) == '"') {
+            int end = json.indexOf('"', start + 1);
+            return end < 0 ? null : json.substring(start + 1, end);
+        }
+        // number or boolean
+        int end = start;
+        while (end < json.length() && ",}\n ".indexOf(json.charAt(end)) < 0) end++;
+        return json.substring(start, end).trim();
+    }
+
+    /** Вызов с system-промптом и кастомным max_tokens */
+    private String callClaudeWithSystem(String system, String userMsg, int maxTokens) throws Exception {
+        String body = "{"
+                + "\"model\":\"claude-haiku-4-5-20251001\","
+                + "\"max_tokens\":" + maxTokens + ","
+                + "\"system\":" + jsonString(system) + ","
+                + "\"messages\":[{\"role\":\"user\",\"content\":" + jsonString(userMsg) + "}]"
+                + "}";
+
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.anthropic.com/v1/messages"))
+                .timeout(Duration.ofSeconds(10))
+                .header("Content-Type", "application/json")
+                .header("x-api-key", apiKey)
+                .header("anthropic-version", "2023-06-01")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+
+        HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() != 200) {
+            log.warn("Claude API returned {}", resp.statusCode());
+            return null;
+        }
+        return extractText(resp.body());
+    }
+
+    public static class AiCategory {
+        public final String category;
+        public final double confidence;
+        public AiCategory(String category, double confidence) {
+            this.category   = category;
+            this.confidence = confidence;
+        }
+        public boolean isConfident() { return confidence >= 0.70; }
     }
 
     private String callClaude(String prompt) throws Exception {
