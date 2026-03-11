@@ -193,17 +193,17 @@ public class CallbackHandler {
             case "onb:step3"  -> onboardingService.sendResetOffer(chatId, bot);
             case "onb:reset"  -> {
                 // Delete all user transactions and start fresh
-                transactionService.clearAllTransactions(user);
+                transactionRepository.deleteAllByUser(user);
                 onboardingService.sendAskInitialBalance(chatId, bot);
-                userStateService.setState(user.getTelegramId(), com.monetka.model.enums.UserState.WAITING_INITIAL_BALANCE);
+                stateService.setState(user.getTelegramId(), com.monetka.model.enums.UserState.WAITING_INITIAL_BALANCE);
             }
             case "onb:balance" -> {
                 // Keep data, just ask balance
                 onboardingService.sendAskInitialBalance(chatId, bot);
-                userStateService.setState(user.getTelegramId(), com.monetka.model.enums.UserState.WAITING_INITIAL_BALANCE);
+                stateService.setState(user.getTelegramId(), com.monetka.model.enums.UserState.WAITING_INITIAL_BALANCE);
             }
             case "onb:balance_skip" -> {
-                userStateService.reset(user.getTelegramId());
+                stateService.reset(user.getTelegramId());
                 onboardingService.sendFinish(chatId, bot);
             }
             case "onb:goals"  -> {
