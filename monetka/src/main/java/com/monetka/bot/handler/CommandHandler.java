@@ -144,7 +144,7 @@ public class CommandHandler {
     private void handleStats(long chatId, long telegramId, MonetkaBot bot) {
         if (!checkApproved(chatId, telegramId, bot)) return;
         userService.findByTelegramId(telegramId).ifPresent(user ->
-                bot.sendMessage(chatId, reportService.buildMonthStats(user), KeyboardFactory.statsPeriod()));
+                bot.sendMessage(chatId, reportService.buildMonthStats(user), KeyboardFactory.periodPicker()));
     }
 
     private void handleSubscriptions(long chatId, long telegramId, MonetkaBot bot) {
