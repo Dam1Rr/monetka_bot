@@ -13,7 +13,6 @@ import com.monetka.repository.CategoryRepository;
 import com.monetka.repository.SubcategoryRepository;
 import com.monetka.repository.TransactionRepository;
 import com.monetka.service.*;
-import com.monetka.service.ReportService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -21,7 +20,6 @@ import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import com.monetka.service.OnboardingService;
 import java.math.BigDecimal;
 import java.util.Optional;
 
@@ -204,10 +202,6 @@ public class CallbackHandler {
             }
             case "onb:balance_skip" -> {
                 stateService.reset(user.getTelegramId());
-                onboardingService.sendFinish(chatId, bot);
-            }
-            case "onb:goals"  -> {
-                overviewHandler.showGoals(user, chatId, bot);
                 onboardingService.sendFinish(chatId, bot);
             }
             case "onb:finish" -> onboardingService.sendFinish(chatId, bot);

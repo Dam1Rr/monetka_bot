@@ -199,7 +199,6 @@ public final class KeyboardFactory {
         List<InlineKeyboardButton> addRow = new ArrayList<>();
         for (Category cat : allCats) {
             if (!existingIds.contains(cat.getId())) {
-                String label = (cat.getEmoji() != null ? cat.getEmoji() + " " : "") + cat.getName();
                 String catLabel = (cat.getEmoji() != null ? cat.getEmoji() + " " : "") + cat.getName();
                 addRow.add(btn(catLabel, "overview:set_goal:" + cat.getId()));
                 if (addRow.size() == 2) {
@@ -326,15 +325,6 @@ public final class KeyboardFactory {
     public static InlineKeyboardMarkup onboardingTryExpense() {
         return InlineKeyboardMarkup.builder()
                 .keyboardRow(List.of(btn("Пропустить ➡", "onb:step3")))
-                .build();
-    }
-
-    public static InlineKeyboardMarkup onboardingGoalChoice() {
-        return InlineKeyboardMarkup.builder()
-                .keyboardRow(List.of(
-                        btn("🎯 Поставить цель", "onb:goals"),
-                        btn("Позже ➡",           "onb:finish")
-                ))
                 .build();
     }
 

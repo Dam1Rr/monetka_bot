@@ -2,15 +2,12 @@ package com.monetka.bot.handler;
 
 import com.monetka.bot.MonetkaBot;
 import com.monetka.bot.keyboard.KeyboardFactory;
-import com.monetka.model.Debt;
 import com.monetka.model.Subscription;
 import com.monetka.model.User;
 import com.monetka.model.enums.UserState;
 import com.monetka.model.enums.UserStatus;
-import com.monetka.service.*;
-import com.monetka.service.BudgetService;
-import com.monetka.service.PaydayService;
 import com.monetka.insight.InsightEngine;
+import com.monetka.service.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -48,7 +45,6 @@ public class MessageHandler {
     private final PaydayService    paydayService;
     private final InsightEngine    insightEngine;
     private final OnboardingService onboardingService;
-    private final DebtService       debtService;
 
     public MessageHandler(UserService userService, UserStateService stateService,
                           TransactionService transactionService, SubscriptionService subscriptionService,
@@ -60,8 +56,7 @@ public class MessageHandler {
                           BudgetService budgetService,
                           PaydayService paydayService,
                           InsightEngine insightEngine,
-                          OnboardingService onboardingService,
-                          DebtService debtService) {
+                          OnboardingService onboardingService) {
         this.userService         = userService;
         this.stateService        = stateService;
         this.transactionService  = transactionService;
@@ -76,7 +71,6 @@ public class MessageHandler {
         this.paydayService       = paydayService;
         this.insightEngine       = insightEngine;
         this.onboardingService   = onboardingService;
-        this.debtService         = debtService;
     }
 
     public void handle(Message message, MonetkaBot bot) {
@@ -117,11 +111,6 @@ public class MessageHandler {
             case WAITING_GOAL_AMOUNT    -> { if (overviewHandler.handleGoalAmountInput(user, text, chatId, bot)) return; }
             case WAITING_EDIT_AMOUNT      -> { if (overviewHandler.handleEditAmountInput(user, text, chatId, bot)) return; }
             case WAITING_EDIT_DESCRIPTION -> { if (overviewHandler.handleEditDescInput(user, text, chatId, bot)) return; }
-            case WAITING_DEBT_NAME    -> { handleDebtName(text, chatId, telegramId, bot);       return; }
-            case WAITING_DEBT_TRIGGER -> { handleDebtTrigger(text, chatId, telegramId, bot);    return; }
-            case WAITING_DEBT_TOTAL   -> { handleDebtTotal(text, chatId, telegramId, bot);      return; }
-            case WAITING_DEBT_MONTHLY -> { handleDebtMonthly(text, chatId, telegramId, bot);    return; }
-            case WAITING_DEBT_PAID    -> { handleDebtPaid(user, text, chatId, telegramId, bot); return; }
             case WAITING_INITIAL_BALANCE -> {
                 handleInitialBalance(user, text, chatId, telegramId, bot);
                 return;
@@ -236,29 +225,12 @@ public class MessageHandler {
         stateService.reset(telegramId);
 
         // Долговой триггер — проверяем SAFE: любая ошибка не роняет расход
-        String debtNote = "";
-        try {
-            java.util.Optional<Debt> debtHit = debtService.applyPayment(user, p.description, p.amount);
-            if (debtHit.isPresent()) {
-                Debt d = debtHit.get();
-                if (d.isClosed()) {
-                    debtNote = "\n\n\uD83C\uDF89 *" + d.getName() + " \u2014 ЗАКРЫТ!*\n"
-                            + "_+" + fmt(d.getMonthlyPayment()) + "/мес теперь свободно!_";
-                } else {
-                    debtNote = "\n\n\uD83D\uDCB3 *" + d.getName() + "*\n   "
-                            + d.progressBar() + "\n   Осталось: *" + fmt(d.getRemaining()) + "*";
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Debt trigger check failed: {}", e.getMessage());
-        }
-
         String cat = detection.display();
-        String learnedNote = detection.isFromLearned() ? "\n🧠 _Узнал по памяти_" : "";
+        String learnedNote = detection.isFromLearned() ? "\n\uD83E\uDDE0 _Узнал по памяти_" : "";
         String confNote = (!detection.isFromLearned() && detection.getConfidence() < 1.0)
                 ? " _(~" + Math.round(detection.getConfidence() * 100) + "%)_" : "";
 
-        String[] reactions = {"✅", "💾", "📌"};
+        String[] reactions = {"\u2705", "\uD83D\uDCBE", "\uD83D\uDCCC"};
         String reaction = reactions[RND.nextInt(reactions.length)];
 
         // Smart pace line — compare today vs average daily this month
@@ -279,8 +251,8 @@ public class MessageHandler {
                         "\uD83D\uDCDD " + com.monetka.bot.MonetkaBot.esc(p.description) + "\n" +
                         "\uD83D\uDCB8 \u2212" + fmt(p.amount) + "\n" +
                         "\uD83C\uDFF7 " + cat + confNote + learnedNote + "\n" +
-                        "\uD83D\uDCB3 Баланс: *" + fmt(user.getBalance()) + "*" +
-                        paceLine + debtNote,
+                        "\uD83D\uDCB3 \u0411\u0430\u043b\u0430\u043d\u0441: *" + fmt(user.getBalance()) + "*" +
+                        paceLine,
                 KeyboardFactory.mainMenu());
 
         // Budget goal alert — send after main confirmation if threshold crossed
@@ -516,93 +488,6 @@ public class MessageHandler {
                         "/balance — текущий баланс\n" +
                         "/день — статус цикла до зарплаты";
         bot.sendMessage(chatId, msg, KeyboardFactory.mainMenu());
-    }
-
-    // ============================================================
-    // ДОЛГИ — диалог создания (5 шагов)
-    // ============================================================
-
-    private void handleDebtName(String text, long chatId, long telegramId, MonetkaBot bot) {
-        if (text.isBlank()) { bot.sendText(chatId, "Введи название долга:"); return; }
-        stateService.putData(telegramId, "debt_name", text.trim());
-        stateService.setState(telegramId, UserState.WAITING_DEBT_TRIGGER);
-        bot.sendMarkdown(chatId,
-                "Придумай слово-триггер \u2014 *одно слово*, которое будешь писать при каждом платеже.\n\n" +
-                        "_Например: `\u0437\u0430\u0440\u043f\u043b\u0430\u0442\u043d\u044b\u0439`, `\u0442\u0435\u043b\u0435\u0444\u043e\u043d`, `\u0430\u0437\u0438\u0437\u0443`_\n\n" +
-                        "Потом просто пишешь: `\u0437\u0430\u0440\u043f\u043b\u0430\u0442\u043d\u044b\u0439 13000` \u2014 и бот сам найдёт этот долг.");
-    }
-
-    private void handleDebtTrigger(String text, long chatId, long telegramId, MonetkaBot bot) {
-        String trigger = text.trim().toLowerCase().split("\\s+")[0];
-        if (trigger.isBlank()) { bot.sendText(chatId, "Введи одно слово-триггер:"); return; }
-        stateService.putData(telegramId, "debt_trigger", trigger);
-        stateService.setState(telegramId, UserState.WAITING_DEBT_TOTAL);
-        bot.sendMarkdown(chatId, "Сколько всего должен? _(сом)_");
-    }
-
-    private void handleDebtTotal(String text, long chatId, long telegramId, MonetkaBot bot) {
-        try {
-            BigDecimal total = new BigDecimal(text.trim().replace(",", ".").replace(" ", ""));
-            if (total.compareTo(BigDecimal.ZERO) <= 0) throw new NumberFormatException();
-            stateService.putData(telegramId, "debt_total", total.toPlainString());
-            stateService.setState(telegramId, UserState.WAITING_DEBT_MONTHLY);
-            bot.sendMarkdown(chatId, "Сколько платишь в месяц? _(сом)_");
-        } catch (NumberFormatException e) {
-            bot.sendText(chatId, "Введи сумму числом, например: 50000");
-        }
-    }
-
-    private void handleDebtMonthly(String text, long chatId, long telegramId, MonetkaBot bot) {
-        try {
-            BigDecimal monthly = new BigDecimal(text.trim().replace(",", ".").replace(" ", ""));
-            if (monthly.compareTo(BigDecimal.ZERO) <= 0) throw new NumberFormatException();
-            stateService.putData(telegramId, "debt_monthly", monthly.toPlainString());
-            stateService.setState(telegramId, UserState.WAITING_DEBT_PAID);
-            bot.sendMarkdown(chatId, "Уже выплатил что-то? _(сом)_\n\n_Если нет \u2014 напиши `0`_");
-        } catch (NumberFormatException e) {
-            bot.sendText(chatId, "Введи сумму числом, например: 13000");
-        }
-    }
-
-    private void handleDebtPaid(User user, String text, long chatId, long telegramId, MonetkaBot bot) {
-        try {
-            BigDecimal paid = new BigDecimal(text.trim().replace(",", ".").replace(" ", ""));
-            if (paid.compareTo(BigDecimal.ZERO) < 0) throw new NumberFormatException();
-
-            String name    = stateService.getData(telegramId, "debt_name");
-            String trigger = stateService.getData(telegramId, "debt_trigger");
-            BigDecimal total   = new BigDecimal(stateService.getData(telegramId, "debt_total"));
-            BigDecimal monthly = new BigDecimal(stateService.getData(telegramId, "debt_monthly"));
-
-            if (name == null || trigger == null) {
-                bot.sendText(chatId, "Что-то пошло не так. Начни заново: /adddebt");
-                stateService.reset(telegramId);
-                return;
-            }
-
-            com.monetka.model.Debt d = debtService.create(user, name, trigger, total, monthly, paid);
-            stateService.reset(telegramId);
-
-            int months = d.monthsLeft();
-            String closeDate = months > 0
-                    ? java.time.LocalDate.now().plusMonths(months)
-                    .format(java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy", new java.util.Locale("ru")))
-                    : "скоро";
-
-            bot.sendMarkdown(chatId,
-                    "\u2705 *" + name + " \u2014 добавлен!*\n\n" +
-                            "Осталось: *" + fmt(d.getRemaining()) + "*\n" +
-                            "Закроется: *~" + closeDate + "* (~" + months + " мес)\n\n" +
-                            d.progressBar() + "\n\n" +
-                            "_Теперь просто пиши `" + trigger + " " + fmt(monthly).replace(" сом","") + "` \u2014 бот сам найдёт этот долг_\n\n" +
-                            "/debt \u2014 посмотреть все долги");
-        } catch (NumberFormatException e) {
-            bot.sendText(chatId, "Введи сумму числом, например: 26000 или 0");
-        } catch (Exception e) {
-            log.error("Error creating debt for user {}: {}", user.getTelegramId(), e.getMessage(), e);
-            bot.sendText(chatId, "Ошибка при сохранении долга. Попробуй ещё раз: /adddebt");
-            stateService.reset(telegramId);
-        }
     }
 
     private String fmt(BigDecimal amount) { return String.format("%,.0f сом", amount); }

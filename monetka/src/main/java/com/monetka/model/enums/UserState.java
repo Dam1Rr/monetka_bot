@@ -28,12 +28,5 @@ public enum UserState {
     WAITING_BROADCAST_MESSAGE,
 
     // Онбординг — начальный баланс
-    WAITING_INITIAL_BALANCE,
-
-    // Создание долга (шаг за шагом)
-    WAITING_DEBT_NAME,
-    WAITING_DEBT_TRIGGER,
-    WAITING_DEBT_TOTAL,
-    WAITING_DEBT_MONTHLY,
-    WAITING_DEBT_PAID
+    WAITING_INITIAL_BALANCE
 }
