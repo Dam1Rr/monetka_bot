@@ -123,15 +123,31 @@ public class CategoryDetectionService {
         // 6. AI категоризация — только если всё выше не сработало
         if (aiInsightService != null) {
             try {
-                List<String> catNames = categoryRepository.findAll().stream()
+                List<Category> allCats = categoryRepository.findAll();
+                List<String> catNames = allCats.stream()
                         .map(Category::getName).collect(java.util.stream.Collectors.toList());
-                AiInsightService.AiCategory aiResult = aiInsightService.detectCategory(text, catNames);
+
+                // Строим карту подкатегорий для AI
+                java.util.Map<String, List<String>> subcatMap = new java.util.LinkedHashMap<>();
+                for (Category cat : allCats) {
+                    List<String> subNames = cat.getSubcategories().stream()
+                            .map(Subcategory::getName).collect(java.util.stream.Collectors.toList());
+                    if (!subNames.isEmpty()) subcatMap.put(cat.getName(), subNames);
+                }
+
+                AiInsightService.AiCategory aiResult = aiInsightService.detectCategory(text, catNames, subcatMap);
                 if (aiResult != null && aiResult.confidence >= 0.60) {
-                    // Ищем категорию по имени
-                    for (Category cat : categoryRepository.findAll()) {
+                    for (Category cat : allCats) {
                         if (cat.getName().equalsIgnoreCase(aiResult.category)) {
                             boolean isDefault = cat.isDefault();
-                            return new DetectionResult(cat, null, aiResult.confidence,
+                            // Ищем подкатегорию если AI её вернул
+                            Subcategory matchedSub = null;
+                            if (aiResult.subcategory != null && !aiResult.subcategory.isBlank()) {
+                                matchedSub = cat.getSubcategories().stream()
+                                        .filter(s -> s.getName().equalsIgnoreCase(aiResult.subcategory))
+                                        .findFirst().orElse(null);
+                            }
+                            return new DetectionResult(cat, matchedSub, aiResult.confidence,
                                     normalized, false, isDefault);
                         }
                     }

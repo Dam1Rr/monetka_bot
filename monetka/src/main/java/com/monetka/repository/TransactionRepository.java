@@ -195,6 +195,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     /** Delete all transactions for a user — used when starting fresh after onboarding */
     void deleteByUser(User user);
 
+    /** Count total transactions for a user — efficient alternative to loading all */
+    long countByUser(User user);
+
     /** MAU — distinct users with any transaction in last 30 days */
     @Query("""
         SELECT COUNT(DISTINCT t.user)

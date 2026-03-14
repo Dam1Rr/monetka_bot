@@ -214,27 +214,47 @@ public class AiInsightService {
      * SAFE: любая ошибка → тихо возвращает null, категоризация падает в keyword-based.
      */
     public AiCategory detectCategory(String expenseText, List<String> availableCategories) {
+        return detectCategory(expenseText, availableCategories, null);
+    }
+
+    public AiCategory detectCategory(String expenseText, List<String> availableCategories,
+                                     java.util.Map<String, List<String>> subcategoriesMap) {
         if (apiKey == null || apiKey.isBlank()) return null;
         if (expenseText == null || expenseText.isBlank()) return null;
         try {
             String categoriesList = String.join(", ", availableCategories);
+
+            // Строим блок подкатегорий если есть
+            StringBuilder subcatBlock = new StringBuilder();
+            if (subcategoriesMap != null && !subcategoriesMap.isEmpty()) {
+                subcatBlock.append("\nПодкатегории по категориям:\n");
+                subcategoriesMap.forEach((cat, subcats) -> {
+                    if (!subcats.isEmpty()) {
+                        subcatBlock.append("  ").append(cat).append(": ")
+                                .append(String.join(", ", subcats)).append("\n");
+                    }
+                });
+            }
+
             String prompt = "Ты помощник по учёту расходов в Кыргызстане (валюта: сом).\n" +
                     "Определи категорию для расхода пользователя.\n" +
-                    "Доступные категории: " + categoriesList + "\n\n" +
-                    "Ответь СТРОГО в формате JSON (без markdown, без пояснений):\n" +
+                    "Доступные категории: " + categoriesList + "\n" +
+                    subcatBlock +
+                    "\nОтветь СТРОГО в формате JSON (без markdown, без пояснений):\n" +
                     "{\"category\":\"...\"," +
+                    "\"subcategory\":\"...\"," +
                     "\"confidence\":0.0}\n\n" +
                     "Расход: \"" + expenseText + "\"\n\n" +
                     "Правила:\n" +
                     "- confidence от 0.0 до 1.0 (насколько уверен)\n" +
                     "- Если не уверен — ставь confidence 0.3 и ниже\n" +
-                    "- Кредиты/займы/рассрочка/мкк → категория Кредиты/Займы\n" +
+                    "- subcategory — точное название подкатегории или пустая строка если не подходит\n" +
                     "- Только JSON, ничего больше";
 
             String raw = callClaudeWithSystem(
                     "Ты отвечаешь ТОЛЬКО в формате JSON. Никакого текста кроме JSON.",
                     prompt,
-                    80
+                    120
             );
             if (raw == null || raw.isBlank()) return null;
             return parseAiCategory(raw);
@@ -248,12 +268,14 @@ public class AiInsightService {
         try {
             String clean = json.trim()
                     .replaceAll("```json", "").replaceAll("```", "").trim();
-            String cat = extractJsonField(clean, "category");
+            String cat    = extractJsonField(clean, "category");
+            String subcat = extractJsonField(clean, "subcategory");
             String confStr = extractJsonField(clean, "confidence");
             if (cat == null || cat.isBlank()) return null;
             double conf = 0.5;
             try { conf = Double.parseDouble(confStr); } catch (Exception ignored) {}
-            return new AiCategory(cat.trim(), conf);
+            String subcatClean = (subcat != null && !subcat.isBlank()) ? subcat.trim() : null;
+            return new AiCategory(cat.trim(), subcatClean, conf);
         } catch (Exception e) {
             log.warn("Failed to parse AI category JSON: {}", json);
             return null;
@@ -308,10 +330,12 @@ public class AiInsightService {
 
     public static class AiCategory {
         public final String category;
+        public final String subcategory; // может быть null или пустой
         public final double confidence;
-        public AiCategory(String category, double confidence) {
-            this.category   = category;
-            this.confidence = confidence;
+        public AiCategory(String category, String subcategory, double confidence) {
+            this.category    = category;
+            this.subcategory = subcategory;
+            this.confidence  = confidence;
         }
         public boolean isConfident() { return confidence >= 0.70; }
     }

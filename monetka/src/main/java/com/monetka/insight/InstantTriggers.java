@@ -43,7 +43,8 @@ public class InstantTriggers {
         if (monthExpenses.isEmpty()) return result;
 
         // ── Ночная трата (после 23:00) ───────────────────────────
-        int hour = lastTx.getCreatedAt().getHour();
+        // Конвертируем в Bishkek время (хранится как LocalDateTime в Asia/Bishkek)
+        int hour = lastTx.getCreatedAt().getHour(); // createdAt уже в Bishkek после фикса prePersist
         if (hour >= 23 || hour < 4) {
             long nightDaysInRow = countNightDaysInRow(monthExpenses);
             if (nightDaysInRow == 1) {
@@ -141,7 +142,7 @@ public class InstantTriggers {
         }
 
         // ── 20-я транзакция — первый тип ────────────────────────
-        long totalTxEver = txRepo.findByUserOrderByCreatedAtDesc(user).size();
+        long totalTxEver = txRepo.countByUser(user);
         if (totalTxEver == 20) {
             result.add(new TriggerMessage("pos_20th_tx",
                     "🧠 Монетка изучала тебя 20 транзакций.\n\n" +

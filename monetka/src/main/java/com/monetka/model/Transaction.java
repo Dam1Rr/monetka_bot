@@ -58,5 +58,5 @@ public class Transaction {
     public void setType(TransactionType type)       { this.type = type; }
 
     @PrePersist
-    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); }
+    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Bishkek")); }
 }
