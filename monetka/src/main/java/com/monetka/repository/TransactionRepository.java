@@ -192,9 +192,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     """)
     List<Object[]> userActivitySummary();
 
-    /** Delete all transactions for a user — used when starting fresh after onboarding */
-    void deleteByUser(User user);
-
     /** Count total transactions for a user — efficient alternative to loading all */
     long countByUser(User user);
 

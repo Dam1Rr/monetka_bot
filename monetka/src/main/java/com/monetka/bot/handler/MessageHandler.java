@@ -108,6 +108,13 @@ public class MessageHandler {
             case WAITING_GOAL_AMOUNT    -> { if (overviewHandler.handleGoalAmountInput(user, text, chatId, bot)) return; }
             case WAITING_EDIT_AMOUNT      -> { if (overviewHandler.handleEditAmountInput(user, text, chatId, bot)) return; }
             case WAITING_EDIT_DESCRIPTION -> { if (overviewHandler.handleEditDescInput(user, text, chatId, bot)) return; }
+            case WAITING_CATEGORY_CHOICE, WAITING_SUBCATEGORY_CHOICE -> {
+                // Пользователь написал текст вместо нажатия кнопки
+                bot.sendMarkdown(chatId,
+                        "Нажми на кнопку категории 👆 или отмени действие.",
+                        KeyboardFactory.cancelMenu());
+                return;
+            }
             case WAITING_INITIAL_BALANCE -> {
                 handleInitialBalance(user, text, chatId, telegramId, bot);
                 return;
@@ -391,7 +398,9 @@ public class MessageHandler {
 
     private ParseResult parse(String text) {
         if (text == null || text.isBlank()) return null;
-        String[] tokens = text.trim().split("\\s+");
+        // Стрипаем "сом", "som", "с" с конца — пользователи часто пишут "шаурма 300 сом"
+        String cleaned = text.trim().replaceAll("(?i)\\s+(сом|som|с)$", "").trim();
+        String[] tokens = cleaned.split("\\s+");
         if (tokens.length < 2) return null;
         try {
             BigDecimal amount = new BigDecimal(tokens[tokens.length - 1].replace(",", "."));
