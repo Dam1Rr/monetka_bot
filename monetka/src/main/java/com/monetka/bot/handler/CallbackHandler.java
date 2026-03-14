@@ -330,7 +330,7 @@ public class CallbackHandler {
             int day = Integer.parseInt(parts[5]);
             String stored = stateService.getData(user.getTelegramId(), "cal_start");
             String storedEnd = stateService.getData(user.getTelegramId(), "cal_end");
-            if (stored == null || (storedEnd != null && !storedEnd.isBlank())) {
+            if (stored == null || stored.isBlank() || (storedEnd != null && !storedEnd.isBlank())) {
                 stateService.putData(user.getTelegramId(), "cal_start", year + ":" + month + ":" + day);
                 stateService.putData(user.getTelegramId(), "cal_end", "");
                 bot.sendMarkdown(chatId,
