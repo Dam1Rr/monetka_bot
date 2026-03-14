@@ -166,9 +166,19 @@ public class CallbackHandler {
         BigDecimal amount = new BigDecimal(amtStr);
         // Use overload that accepts explicit category — skips unnecessary auto-detection
         Transaction tx = transactionService.addExpense(user, amount, desc, category, subcategory);
-        String keyword = detectionService.normalize(desc);
-        if (!keyword.isBlank()) {
-            detectionService.learnKeyword(keyword.split("\\s+")[0], category, subcategory, user.getTelegramId());
+        // Учим все значимые токены из описания (не только первый)
+        String normalized = detectionService.normalize(desc);
+        if (!normalized.isBlank()) {
+            for (String token : normalized.split("\\s+")) {
+                if (token.length() >= 3) {
+                    detectionService.learnKeyword(token, category, subcategory, user.getTelegramId());
+                }
+            }
+            // Также учим целую фразу если она короткая (до 3 слов)
+            String[] parts2 = normalized.split("\\s+");
+            if (parts2.length > 1 && parts2.length <= 3) {
+                detectionService.learnKeyword(normalized, category, subcategory, user.getTelegramId());
+            }
         }
         stateService.reset(telegramId);
         String catDisplay = subcategory != null

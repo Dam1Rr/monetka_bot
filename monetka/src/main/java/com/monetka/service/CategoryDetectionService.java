@@ -27,6 +27,28 @@ public class CategoryDetectionService {
     private final Map<String, Subcategory> keywordIndex = new HashMap<>();
     private Category defaultCategory;
 
+    /**
+     * Слова которые НИКОГДА не учатся как ключевые — слишком общие.
+     * Если пользователь пишет "оплата за свет" и выбирает Коммуналку,
+     * мы учим "свет", а не "оплата", "за" и т.д.
+     */
+    private static final Set<String> STOP_WORDS = new HashSet<>(Arrays.asList(
+            "оплата","оплатил","оплатила","оплачено","оплатить","заплатил","заплатила",
+            "купил","купила","купили","покупка","потратил","потратила","трата",
+            "перевел","перевела","перевод","отправил","кинул","скинул",
+            "за","на","в","из","от","до","к","по","при","без","под","над","про","для",
+            "со","об","ради","через","между","среди","вокруг",
+            "сегодня","вчера","завтра","утром","вечером","ночью","днём","день",
+            "раз","немного","много","мало","очень","ещё","уже","тоже","также",
+            "новый","новая","новое","старый","старая","другой","другая",
+            "мой","моя","моё","мои","наш","свой","своя",
+            "это","этот","эта","тот","та",
+            "деньги","сумма","итого","всего","нужно","надо","хочу",
+            "стоит","стоимость","цена","счёт","счет","платёж","платеж",
+            "обычно","просто","только","вообще","нет","да","ок","окей",
+            "один","одна","два","две","три","четыре","пять","шесть","семь","восемь","девять","десять"
+    ));
+
     // AiInsightService инжектируется через setter чтобы избежать circular dependency
     // CategoryDetectionService ← MessageHandler ← AiInsightService (если через конструктор)
     private AiInsightService aiInsightService;
@@ -163,6 +185,18 @@ public class CategoryDetectionService {
     @Transactional
     public void learnKeyword(String word, Category category, Subcategory subcategory, Long userId) {
         String kw = word.toLowerCase().trim();
+
+        // Не учим стоп-слова — они слишком общие
+        if (STOP_WORDS.contains(kw)) {
+            log.debug("Skipping stop-word: '{}'", kw);
+            return;
+        }
+        // Не учим слова короче 3 символов
+        if (kw.length() < 3) {
+            log.debug("Skipping too-short word: '{}'", kw);
+            return;
+        }
+
         Optional<LearnedKeyword> existing = learnedKeywordRepository.findByKeywordAndUserId(kw, userId);
         if (existing.isPresent()) {
             LearnedKeyword lk = existing.get();
