@@ -110,7 +110,7 @@ public class MessageHandler {
             case WAITING_EDIT_DESCRIPTION -> { if (overviewHandler.handleEditDescInput(user, text, chatId, bot)) return; }
             case WAITING_CATEGORY_CHOICE, WAITING_SUBCATEGORY_CHOICE -> {
                 // Пользователь написал текст вместо нажатия кнопки
-                bot.sendMarkdown(chatId,
+                bot.sendMessage(chatId,
                         "Нажми на кнопку категории 👆 или отмени действие.",
                         KeyboardFactory.cancelMenu());
                 return;
