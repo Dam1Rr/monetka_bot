@@ -31,6 +31,7 @@ spring:
     baseline-on-migrate: true
     connect-retries: 5
     connect-retries-interval: 5
+    validate-on-migrate: false
 
   jackson:
     time-zone: Asia/Bishkek
@@ -44,7 +45,6 @@ telegram:
     webhook-url: ${WEBHOOK_URL:http://localhost:8080}
     admin-ids: ${ADMIN_IDS:}
 
-# Timezone for all @Scheduled cron expressions
 spring.task.scheduling.pool.size: 2
 
 logging:
