@@ -549,16 +549,27 @@ ON CONFLICT DO NOTHING;
 -- ================================================================
 -- 15. ПРОЧЕЕ — финансовые операции (часто путают)
 -- ================================================================
-INSERT INTO subcategories (name, emoji, category_id)
-SELECT 'Переводы', '💳', id FROM categories WHERE name = 'Прочее'
-ON CONFLICT DO NOTHING;
 
 INSERT INTO subcategory_keywords (subcategory_id, keyword)
-SELECT id, kw FROM subcategories, (VALUES
-    ('перевод'),('перевели'),('переслал'),('отправил деньги'),('кинул деньги'),
-    ('скинул деньги'),('mbank'),('mbанк'),('элкарт'),('elcard'),
-    ('western union'),('contact'),('мгновенный перевод'),('swift')
-) AS t(kw) WHERE subcategories.name = 'Переводы'
+SELECT id, kw
+FROM subcategories,
+(VALUES
+    ('перевод'),
+    ('перевели'),
+    ('переслал'),
+    ('отправил деньги'),
+    ('кинул деньги'),
+    ('скинул деньги'),
+    ('mbank'),
+    ('mbанк'),
+    ('элкарт'),
+    ('elcard'),
+    ('western union'),
+    ('contact'),
+    ('мгновенный перевод'),
+    ('swift')
+) AS t(kw)
+WHERE subcategories.name = 'Переводы'
 ON CONFLICT DO NOTHING;
 
 INSERT INTO subcategories (name, emoji, category_id)
@@ -586,7 +597,7 @@ SELECT id, kw FROM subcategories, (VALUES
     ('цветы'),('букет'),('розы'),('тюльпаны'),('цветочный'),
     ('сертификат'),('подарочный сертификат'),('промокод в подарок'),
     ('поздравление'),('открытка'),('шарики'),('воздушные шары'),
-    ('день рождения подарок'),('новый год подарок'),('8 марта'),('23 февраля')
+   ('день рождения подарок'),('новый год подарок'),('8 марта'),('23 февраля')
 ) AS t(kw) WHERE subcategories.name = 'Подарки'
 ON CONFLICT DO NOTHING;
 
