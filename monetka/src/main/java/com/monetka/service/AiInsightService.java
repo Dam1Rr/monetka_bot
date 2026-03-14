@@ -131,10 +131,7 @@ public class AiInsightService {
         Map<LocalDate, BigDecimal> byDay = new LinkedHashMap<>();
         Map<String, BigDecimal> descTotals = new LinkedHashMap<>();
         for (Transaction tx : txs) {
-            LocalDate d = tx.getCreatedAt()
-                    .atZone(java.time.ZoneOffset.UTC)
-                    .withZoneSameInstant(BISHKEK)
-                    .toLocalDate();
+            LocalDate d = tx.getCreatedAt().toLocalDate();
             byDay.merge(d, tx.getAmount(), BigDecimal::add);
             String desc = tx.getDescription() == null ? "unknown" : tx.getDescription().toLowerCase();
             descTotals.merge(desc, tx.getAmount(), BigDecimal::add);
