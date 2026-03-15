@@ -41,6 +41,7 @@ public class CallbackHandler {
     private final AdminHandler             adminHandler;
     private final OverviewHandler          overviewHandler;
     private final OnboardingService        onboardingService;
+    private final ReminderService          reminderService;
 
     public CallbackHandler(UserService userService, UserStateService stateService,
                            TransactionService transactionService, SubscriptionService subscriptionService,
@@ -49,7 +50,8 @@ public class CallbackHandler {
                            TransactionRepository transactionRepository, BotProperties botProperties,
                            AdminHandler adminHandler,
                            OverviewHandler overviewHandler,
-                           OnboardingService onboardingService) {
+                           OnboardingService onboardingService,
+                           ReminderService reminderService) {
         this.userService          = userService;
         this.stateService         = stateService;
         this.transactionService   = transactionService;
@@ -63,6 +65,7 @@ public class CallbackHandler {
         this.adminHandler         = adminHandler;
         this.overviewHandler      = overviewHandler;
         this.onboardingService    = onboardingService;
+        this.reminderService      = reminderService;
     }
 
     public void handle(CallbackQuery callback, MonetkaBot bot) {
@@ -93,7 +96,8 @@ public class CallbackHandler {
         else if (data.startsWith("cat:"))          handleCategoryChoice(user, data, chatId, telegramId, bot);
         else if (data.startsWith("subcat:"))       handleSubcategoryChoice(user, data, chatId, telegramId, bot);
         else if (data.startsWith("overview:"))     overviewHandler.handle(data.substring(9), user, chatId, callback.getMessage().getMessageId(), bot);
-        else if (data.startsWith("onb:"))            handleOnboarding(data, chatId, user, bot);
+        else if (data.startsWith("onb:"))          handleOnboarding(data, chatId, user, bot);
+        else if (data.startsWith("remind:"))       handleRemind(data, user, chatId, bot);
         else log.warn("Unknown callback: {}", data);
     }
 
@@ -379,6 +383,26 @@ public class CallbackHandler {
             String report = reportService.buildRangeStats(user, from, to, label);
             bot.sendMarkdown(chatId, report, KeyboardFactory.periodPicker());
         }
+    }
+
+    // ================================================================
+    // Remind callbacks
+    // ================================================================
+
+    private void handleRemind(String data, User user, long chatId, MonetkaBot bot) {
+        String action = data.substring("remind:".length());
+        com.monetka.model.UserReminder r = switch (action) {
+            case "on"             -> reminderService.setEnabled(user, true);
+            case "off"            -> reminderService.setEnabled(user, false);
+            case "toggle_morning" -> reminderService.toggleMorning(user);
+            case "toggle_evening" -> reminderService.toggleEvening(user);
+            default               -> reminderService.getOrCreate(user);
+        };
+        bot.sendMarkdown(chatId,
+                "⏰ *Напоминания*\n\n" +
+                        reminderService.statusText(r) + "\n" +
+                        "_Напоминания помогают не забывать записывать траты каждый день._",
+                KeyboardFactory.remindMenu(r));
     }
 
     // ================================================================

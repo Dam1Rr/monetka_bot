@@ -343,6 +343,34 @@ public final class KeyboardFactory {
     }
 
     // ================================================================
+    // Remind menu
+    // ================================================================
+
+    public static InlineKeyboardMarkup remindMenu(com.monetka.model.UserReminder r) {
+        var rows = new java.util.ArrayList<java.util.List<InlineKeyboardButton>>();
+
+        if (r.isEnabled()) {
+            // Выключить всё
+            rows.add(List.of(btn("🔕 Выключить напоминания", "remind:off")));
+            // Утреннее
+            String morningLabel = r.isMorningEnabled()
+                    ? "☀️ Утро " + String.format("%02d:00", r.getHourMorning()) + " — выключить"
+                    : "☀️ Утро — включить";
+            rows.add(List.of(btn(morningLabel, "remind:toggle_morning")));
+            // Вечернее
+            String eveningLabel = r.isEveningEnabled()
+                    ? "🌙 Вечер " + String.format("%02d:00", r.getHourEvening()) + " — выключить"
+                    : "🌙 Вечер — включить";
+            rows.add(List.of(btn(eveningLabel, "remind:toggle_evening")));
+        } else {
+            // Включить
+            rows.add(List.of(btn("🔔 Включить напоминания", "remind:on")));
+        }
+
+        return InlineKeyboardMarkup.builder().keyboard(rows).build();
+    }
+
+    // ================================================================
     // Edit transaction
     // ================================================================
 

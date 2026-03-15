@@ -6,6 +6,7 @@ import com.monetka.bot.keyboard.KeyboardFactory;
 import com.monetka.config.BotProperties;
 import com.monetka.model.Subscription;
 import com.monetka.model.User;
+import com.monetka.model.UserReminder;
 import com.monetka.model.enums.UserStatus;
 import com.monetka.service.*;
 import org.slf4j.Logger;
@@ -35,13 +36,15 @@ public class CommandHandler {
     private final PaydayService       paydayService;
     private final BotSettingsService  botSettingsService;
     private final OnboardingService   onboardingService;
+    private final ReminderService     reminderService;
 
     public CommandHandler(UserService userService, UserStateService stateService,
                           ReportService reportService, SubscriptionService subscriptionService,
                           BotProperties botProperties, AdminHandler adminHandler,
                           PaydayService paydayService,
                           BotSettingsService botSettingsService,
-                          OnboardingService onboardingService) {
+                          OnboardingService onboardingService,
+                          ReminderService reminderService) {
         this.userService         = userService;
         this.stateService        = stateService;
         this.reportService       = reportService;
@@ -51,6 +54,7 @@ public class CommandHandler {
         this.paydayService       = paydayService;
         this.botSettingsService  = botSettingsService;
         this.onboardingService   = onboardingService;
+        this.reminderService     = reminderService;
     }
 
     public void handle(Message message, MonetkaBot bot) {
@@ -66,13 +70,14 @@ public class CommandHandler {
             case "/stats"         -> handleStats(chatId, telegramId, bot);
             case "/day"           -> handleDay(chatId, telegramId, bot);
             case "/subscriptions" -> handleSubscriptions(chatId, telegramId, bot);
+            case "/remind"        -> handleRemind(chatId, telegramId, bot);
             case "/admin"         -> adminHandler.handleCommand(message, bot);
             case "/pending"       -> handlePending(chatId, telegramId, bot);
             case "/blocked"       -> handleBlockedList(chatId, telegramId, bot);
             case "/approve"       -> handleApprove(message.getText(), chatId, telegramId, bot);
             case "/block"         -> handleBlock(message.getText(), chatId, telegramId, bot);
             case "/unblock"       -> handleUnblock(message.getText(), chatId, telegramId, bot);
-            default               -> bot.sendText(chatId, "Не знаю такой команды \uD83E\uDD37 Попробуй /help");
+            default               -> bot.sendText(chatId, "Не знаю такой команды 🤷 Попробуй /help");
         }
     }
 
@@ -115,19 +120,20 @@ public class CommandHandler {
 
     private void handleHelp(long chatId, long telegramId, MonetkaBot bot) {
         if (!checkApproved(chatId, telegramId, bot)) return;
-        String adminHint = adminHandler.isAdmin(telegramId) ? "\n\n\uD83D\uDEE1 *Ты админ:* /admin" : "";
+        String adminHint = adminHandler.isAdmin(telegramId) ? "\n\n🛡 *Ты админ:* /admin" : "";
         bot.sendMarkdown(chatId,
-                "*Monetka \u2014 твой личный финансист* \uD83D\uDCB0\uD83E\uDD16\n\n" +
+                "*Monetka — твой личный финансист* 💰🤖\n\n" +
                         "*Как записать расход:*\n" +
-                        "\u041d\u0430\u0436\u043c\u0438 *\uD83D\uDCB8 \u0420\u0430\u0441\u0445\u043e\u0434* \u2192 \u0432\u0432\u0435\u0434\u0438 `\u043d\u0430\u0437\u0432\u0430\u043d\u0438\u0435 \u0441\u0443\u043c\u043c\u0430`\n" +
-                        "\u041d\u0430\u043f\u0440\u0438\u043c\u0435\u0440: `\u0448\u0430\u0443\u0440\u043c\u0430 300` \u0438\u043b\u0438 `\u0442\u0430\u043a\u0441\u0438 500`\n\n" +
+                        "Нажми *💸 Расход* → введи `название сумма`\n" +
+                        "Например: `шаурма 300` или `такси 500`\n\n" +
                         "*Как записать доход:*\n" +
-                        "\u041d\u0430\u0436\u043c\u0438 *\uD83D\uDCB0 \u0414\u043e\u0445\u043e\u0434* \u2192 \u0432\u0432\u0435\u0434\u0438 `\u043d\u0430\u0437\u0432\u0430\u043d\u0438\u0435 \u0441\u0443\u043c\u043c\u0430`\n\n" +
+                        "Нажми *💰 Доход* → введи `название сумма`\n\n" +
                         "*Команды:*\n" +
-                        "/balance \u2014 текущий баланс \uD83D\uDCB3\n" +
-                        "/stats \u2014 статистика расходов \uD83D\uDCCA\n" +
-                        "/subscriptions \u2014 мои подписки \uD83D\uDD14\n\n" +
-                        "\uD83D\uDCA1 _Бот учится: чем больше используешь, тем точнее определяет категории!_" +
+                        "/balance — текущий баланс 💳\n" +
+                        "/stats — статистика расходов 📊\n" +
+                        "/subscriptions — мои подписки 🔔\n" +
+                        "/remind — настройки напоминаний ⏰\n\n" +
+                        "💡 _Бот учится: чем больше используешь, тем точнее определяет категории!_" +
                         adminHint);
     }
 
@@ -322,7 +328,23 @@ public class CommandHandler {
         return text.trim().split("\\s+")[0].split("@")[0].toLowerCase();
     }
 
-    private String fmt(BigDecimal amount) { return String.format("%,.0f \u0441\u043e\u043c", amount); }
+    private String fmt(BigDecimal amount) { return String.format("%,.0f сом", amount); }
+
+    // ================================================================
+    // /remind — настройки напоминаний
+    // ================================================================
+
+    private void handleRemind(long chatId, long telegramId, MonetkaBot bot) {
+        if (!checkApproved(chatId, telegramId, bot)) return;
+        userService.findByTelegramId(telegramId).ifPresent(user -> {
+            com.monetka.model.UserReminder r = reminderService.getOrCreate(user);
+            bot.sendMarkdown(chatId,
+                    "⏰ *Напоминания*\n\n" +
+                            reminderService.statusText(r) + "\n" +
+                            "_Напоминания помогают не забывать записывать траты каждый день._",
+                    KeyboardFactory.remindMenu(r));
+        });
+    }
 
     @SafeVarargs
     private static <T> T pick(T... options) { return options[RND.nextInt(options.length)]; }
