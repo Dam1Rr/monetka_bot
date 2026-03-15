@@ -391,6 +391,32 @@ public class CallbackHandler {
 
     private void handleRemind(String data, User user, long chatId, MonetkaBot bot) {
         String action = data.substring("remind:".length());
+
+        // noop — кнопка-заглушка (только текст, без действия)
+        if (action.equals("noop")) return;
+
+        // Запрос ввода нового времени
+        if (action.equals("set_morning")) {
+            stateService.setState(user.getTelegramId(), com.monetka.model.enums.UserState.WAITING_REMIND_MORNING);
+            bot.sendMessage(chatId,
+                    "☀️ *Утреннее напоминание*\n\n" +
+                            "Введи час от 6 до 23:\n" +
+                            "_Например: `8` — напоминание придёт в 08:00_",
+                    KeyboardFactory.cancelMenu());
+            return;
+        }
+
+        if (action.equals("set_evening")) {
+            stateService.setState(user.getTelegramId(), com.monetka.model.enums.UserState.WAITING_REMIND_EVENING);
+            bot.sendMessage(chatId,
+                    "🌙 *Вечернее напоминание*\n\n" +
+                            "Введи час от 6 до 23:\n" +
+                            "_Например: `21` — напоминание придёт в 21:00_",
+                    KeyboardFactory.cancelMenu());
+            return;
+        }
+
+        // Остальные действия
         com.monetka.model.UserReminder r = switch (action) {
             case "on"             -> reminderService.setEnabled(user, true);
             case "off"            -> reminderService.setEnabled(user, false);

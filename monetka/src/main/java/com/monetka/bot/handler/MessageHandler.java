@@ -44,6 +44,7 @@ public class MessageHandler {
     private final PaydayService    paydayService;
     private final InsightEngine    insightEngine;
     private final OnboardingService onboardingService;
+    private final ReminderService   reminderService;
 
     public MessageHandler(UserService userService, UserStateService stateService,
                           TransactionService transactionService, SubscriptionService subscriptionService,
@@ -54,7 +55,8 @@ public class MessageHandler {
                           BudgetService budgetService,
                           PaydayService paydayService,
                           InsightEngine insightEngine,
-                          OnboardingService onboardingService) {
+                          OnboardingService onboardingService,
+                          ReminderService reminderService) {
         this.userService         = userService;
         this.stateService        = stateService;
         this.transactionService  = transactionService;
@@ -68,6 +70,7 @@ public class MessageHandler {
         this.paydayService       = paydayService;
         this.insightEngine       = insightEngine;
         this.onboardingService   = onboardingService;
+        this.reminderService     = reminderService;
     }
 
     public void handle(Message message, MonetkaBot bot) {
@@ -121,6 +124,14 @@ public class MessageHandler {
             }
             case WAITING_BROADCAST_MESSAGE -> {
                 adminHandler.handleBroadcastInput(chatId, telegramId, text, bot);
+                return;
+            }
+            case WAITING_REMIND_MORNING -> {
+                handleRemindTimeInput(user, text, chatId, telegramId, bot, true);
+                return;
+            }
+            case WAITING_REMIND_EVENING -> {
+                handleRemindTimeInput(user, text, chatId, telegramId, bot, false);
                 return;
             }
             default -> {}
@@ -446,6 +457,42 @@ public class MessageHandler {
     /** Pick a random string from options for variety */
     @SafeVarargs
     private static <T> T pick(T... options) { return options[RND.nextInt(options.length)]; }
+
+    // ================================================================
+    // Обработка ввода времени напоминания
+    // ================================================================
+
+    private void handleRemindTimeInput(User user, String text, long chatId,
+                                       long telegramId, MonetkaBot bot, boolean isMorning) {
+        stateService.reset(telegramId);
+
+        int hour;
+        try {
+            hour = Integer.parseInt(text.trim());
+        } catch (NumberFormatException e) {
+            bot.sendMessage(chatId,
+                    "Введи число от 6 до 23 👆\nНапример: `9` или `20`",
+                    KeyboardFactory.cancelMenu());
+            return;
+        }
+
+        if (hour < 6 || hour > 23) {
+            bot.sendMessage(chatId,
+                    "Час должен быть от 6 до 23 🙏\nНапример: `9` или `20`",
+                    KeyboardFactory.cancelMenu());
+            return;
+        }
+
+        com.monetka.model.UserReminder r = isMorning
+                ? reminderService.setMorningHour(user, hour)
+                : reminderService.setEveningHour(user, hour);
+
+        String label = isMorning ? "☀️ Утреннее" : "🌙 Вечернее";
+        bot.sendMarkdown(chatId,
+                label + " напоминание установлено на *" + String.format("%02d:00", hour) + "* ✅\n\n" +
+                        reminderService.statusText(r),
+                KeyboardFactory.remindMenu(r));
+    }
 
     private static final class ParseResult {
         final String description;

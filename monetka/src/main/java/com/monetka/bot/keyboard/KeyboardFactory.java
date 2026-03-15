@@ -352,18 +352,35 @@ public final class KeyboardFactory {
         if (r.isEnabled()) {
             // Выключить всё
             rows.add(List.of(btn("🔕 Выключить напоминания", "remind:off")));
-            // Утреннее
-            String morningLabel = r.isMorningEnabled()
-                    ? "☀️ Утро " + String.format("%02d:00", r.getHourMorning()) + " — выключить"
-                    : "☀️ Утро — включить";
-            rows.add(List.of(btn(morningLabel, "remind:toggle_morning")));
-            // Вечернее
-            String eveningLabel = r.isEveningEnabled()
-                    ? "🌙 Вечер " + String.format("%02d:00", r.getHourEvening()) + " — выключить"
-                    : "🌙 Вечер — включить";
-            rows.add(List.of(btn(eveningLabel, "remind:toggle_evening")));
+
+            // Утреннее — строка с включить/выключить + изменить время
+            if (r.isMorningEnabled()) {
+                rows.add(List.of(
+                        btn("☀️ Утро " + String.format("%02d:00", r.getHourMorning()), "remind:noop"),
+                        btn("✏️", "remind:set_morning"),
+                        btn("🔕", "remind:toggle_morning")
+                ));
+            } else {
+                rows.add(List.of(
+                        btn("☀️ Утро — выключено", "remind:noop"),
+                        btn("🔔", "remind:toggle_morning")
+                ));
+            }
+
+            // Вечернее — строка с включить/выключить + изменить время
+            if (r.isEveningEnabled()) {
+                rows.add(List.of(
+                        btn("🌙 Вечер " + String.format("%02d:00", r.getHourEvening()), "remind:noop"),
+                        btn("✏️", "remind:set_evening"),
+                        btn("🔕", "remind:toggle_evening")
+                ));
+            } else {
+                rows.add(List.of(
+                        btn("🌙 Вечер — выключено", "remind:noop"),
+                        btn("🔔", "remind:toggle_evening")
+                ));
+            }
         } else {
-            // Включить
             rows.add(List.of(btn("🔔 Включить напоминания", "remind:on")));
         }
 

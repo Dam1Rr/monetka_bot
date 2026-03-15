@@ -28,5 +28,9 @@ public enum UserState {
     WAITING_BROADCAST_MESSAGE,
 
     // Онбординг — начальный баланс
-    WAITING_INITIAL_BALANCE
+    WAITING_INITIAL_BALANCE,
+
+    // Напоминания — ввод времени
+    WAITING_REMIND_MORNING,
+    WAITING_REMIND_EVENING
 }
