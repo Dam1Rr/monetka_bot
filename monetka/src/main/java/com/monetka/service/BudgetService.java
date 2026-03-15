@@ -104,26 +104,33 @@ public class BudgetService {
                 ? category.getEmoji() + " " + category.getName()
                 : category.getName();
 
+        // Прогресс-бар 10 делений
+        int filled = Math.min(10, percent / 10);
+        String bar = "█".repeat(filled) + "░".repeat(10 - filled);
+
         if (percent >= 100) {
             BigDecimal over = spent.subtract(goal.getAmount());
             return Optional.of(
-                    "🔴 *Цель «" + catLabel + "» исчерпана*\n\n" +
-                            "Потратил " + fmt(spent) + " из " + fmt(goal.getAmount()) + "\n" +
-                            "Превышение: *" + fmt(over) + "*\n\n" +
+                    "🔴 *" + catLabel + " — лимит исчерпан*\n\n" +
+                            "`" + bar + "`  _" + percent + "%_\n" +
+                            "💸 " + fmt(spent) + " из *" + fmt(goal.getAmount()) + "*\n" +
+                            "⚠️ Превышение: *" + fmt(over) + "*\n\n" +
                             "_Записываю дальше — просто имей в виду 📝_"
             );
         } else if (percent >= 90) {
             return Optional.of(
-                    "🟡 *" + catLabel + " — почти цель*\n\n" +
-                            "Потратил " + percent + "% бюджета.\n" +
-                            "Осталось *" + fmt(remaining) + "* до конца месяца.\n\n" +
-                            "_Решать тебе 😉_"
+                    "🟡 *" + catLabel + "* — почти лимит\n\n" +
+                            "`" + bar + "`  _" + percent + "%_\n" +
+                            "💸 " + fmt(spent) + " из *" + fmt(goal.getAmount()) + "*\n" +
+                            "✅ Осталось: *" + fmt(remaining) + "*\n\n" +
+                            "_Держись, финишная прямая 😉_"
             );
         } else if (percent >= 80) {
             return Optional.of(
-                    "☕ *" + catLabel + "* — " + percent + "%\n\n" +
-                            "Потратил " + fmt(spent) + " из " + fmt(goal.getAmount()) + "\n" +
-                            "Осталось *" + fmt(remaining) + "*\n\n" +
+                    "🟡 *" + catLabel + "* — 80% лимита\n\n" +
+                            "`" + bar + "`  _" + percent + "%_\n" +
+                            "💸 " + fmt(spent) + " из *" + fmt(goal.getAmount()) + "*\n" +
+                            "✅ Осталось: *" + fmt(remaining) + "*\n\n" +
                             "_Всё под контролем 👌_"
             );
         }

@@ -166,40 +166,48 @@ public class OverviewHandler {
 
         StringBuilder sb = new StringBuilder();
         sb.append(cat.getEmoji() != null ? cat.getEmoji() + " " : "");
-        sb.append("*").append(cat.getName()).append(" \u2014 ").append(statisticsService.currentMonthName()).append("*\n\n");
-        sb.append("\u041f\u043e\u0442\u0440\u0430\u0447\u0435\u043d\u043e: *").append(fmt(spent)).append("*\n");
+        sb.append("*").append(cat.getName()).append(" — ").append(statisticsService.currentMonthName()).append("*\n\n");
+        sb.append("💸 Потрачено: *").append(fmt(spent)).append("*\n");
 
-        // Goal — simple text, no bar
+        // Goal — с прогресс-баром как в showGoals
         budgetService.getGoal(user, cat).ifPresent(goal -> {
             BigDecimal remaining = goal.getAmount().subtract(spent);
+            boolean over = remaining.compareTo(BigDecimal.ZERO) < 0;
             int pct = spent.compareTo(BigDecimal.ZERO) > 0
                     ? spent.multiply(BigDecimal.valueOf(100))
                     .divide(goal.getAmount(), 0, RoundingMode.HALF_UP).intValue()
                     : 0;
-            sb.append("\u0426\u0435\u043b\u044c: *").append(fmt(goal.getAmount())).append("*");
-            sb.append("  (").append(pct).append("%)");
-            if (pct >= 100)
-                sb.append("  \uD83D\uDD34 \u043f\u0440\u0435\u0432\u044b\u0448\u0435\u043d\u0430 \u043d\u0430 *").append(fmt(remaining.abs())).append("*");
-            else if (pct >= 80)
-                sb.append("  \uD83D\uDFE1 \u043e\u0441\u0442\u0430\u043b\u043e\u0441\u044c *").append(fmt(remaining)).append("*");
-            else
-                sb.append("  \u2705 \u043e\u0441\u0442\u0430\u043b\u043e\u0441\u044c *").append(fmt(remaining)).append("*");
-            sb.append("\n");
+
+            int filled = Math.min(10, pct / 10);
+            String bar = "█".repeat(filled) + "░".repeat(10 - filled);
+            String icon = pct >= 100 ? "🔴" : pct >= 80 ? "🟡" : "🟢";
+
+            sb.append("\n🎯 *Лимит: ").append(fmt(goal.getAmount())).append("*  ").append(icon).append("\n");
+            sb.append("`").append(bar).append("`  _").append(pct).append("%_\n");
+            if (over) {
+                sb.append("⚠️ _Превышение: ").append(fmt(remaining.negate())).append("_\n");
+            } else {
+                sb.append("✅ _Доступно: *").append(fmt(remaining)).append("*_\n");
+            }
         });
 
         // Subcategories
         if (!subcats.isEmpty()) {
-            sb.append("\n\uD83D\uDCC2 *\u041F\u043e \u043f\u043e\u0434\u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044f\u043c:*\n");
-            for (Object[] row : subcats) {
-                String sName  = (String) row[0];
-                String sEmoji = (String) row[1];
+            sb.append("\n📂 *По подкатегориям:*\n");
+            for (int i = 0; i < subcats.size(); i++) {
+                Object[] row = subcats.get(i);
+                String sName   = (String)     row[0];
+                String sEmoji  = (String)     row[1];
                 BigDecimal amt = (BigDecimal) row[2];
                 int pct = spent.compareTo(BigDecimal.ZERO) > 0
                         ? amt.multiply(BigDecimal.valueOf(100))
                         .divide(spent, 0, RoundingMode.HALF_UP).intValue()
                         : 0;
-                sb.append(sEmoji != null ? sEmoji + " " : "\u2022 ");
-                sb.append(sName).append("  *").append(fmt(amt)).append("*  (").append(pct).append("%)\n");
+                String prefix = (i == subcats.size() - 1) ? "   └ " : "   ├ ";
+                sb.append(prefix)
+                        .append(sEmoji != null ? sEmoji + " " : "")
+                        .append(sName).append(" — *").append(fmt(amt)).append("*")
+                        .append("  _").append(pct).append("%_\n");
             }
         }
 
@@ -341,19 +349,34 @@ public class OverviewHandler {
                         ? spent.multiply(BigDecimal.valueOf(100))
                         .divide(g.getAmount(), 0, RoundingMode.HALF_UP).intValue()
                         : 0;
-                // Status icon and label
-                String statusIcon  = pct >= 100 ? "\uD83D\uDD34" : pct >= 80 ? "\uD83D\uDFE1" : "\u2705";
-                String statusLabel = pct >= 100 ? "превышен" : pct >= 80 ? "осторожно" : "норма";
-                BigDecimal left = g.getAmount().subtract(spent);
-                String leftText = left.compareTo(BigDecimal.ZERO) >= 0
-                        ? "_осталось " + fmt(left) + "_"
-                        : "_превышение " + fmt(left.negate()) + "_";
 
-                if (g.getCategory().getEmoji() != null) sb.append(g.getCategory().getEmoji()).append(" ");
-                sb.append("*").append(g.getCategory().getName()).append("*")
-                        .append("  ").append(statusIcon).append(" _").append(statusLabel).append("_\n");
-                sb.append(fmt(spent)).append(" / ").append(fmt(g.getAmount()))
-                        .append("  ").append(leftText).append("\n\n");
+                String statusIcon = pct >= 100 ? "🔴" : pct >= 80 ? "🟡" : "🟢";
+                BigDecimal left   = g.getAmount().subtract(spent);
+                boolean over      = left.compareTo(BigDecimal.ZERO) < 0;
+
+                // Текстовый прогресс-бар 10 делений
+                int filled = Math.min(10, pct / 10);
+                String bar = "█".repeat(filled) + "░".repeat(10 - filled);
+
+                String catEmoji = g.getCategory().getEmoji() != null ? g.getCategory().getEmoji() + " " : "";
+                sb.append(catEmoji)
+                        .append("*").append(g.getCategory().getName()).append("*")
+                        .append("  ").append(statusIcon).append("\n");
+
+                // Прогресс бар
+                sb.append("`").append(bar).append("`")
+                        .append("  _").append(pct).append("%_\n");
+
+                // Потрачено / Лимит
+                sb.append("💸 ").append(fmt(spent))
+                        .append(" из *").append(fmt(g.getAmount())).append("*\n");
+
+                // Доступно или превышение
+                if (over) {
+                    sb.append("⚠️ _Превышение: ").append(fmt(left.negate())).append("_\n\n");
+                } else {
+                    sb.append("✅ _Доступно: ").append(fmt(left)).append("_\n\n");
+                }
             }
         }
 
