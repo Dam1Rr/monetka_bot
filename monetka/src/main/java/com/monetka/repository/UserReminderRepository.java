@@ -18,6 +18,7 @@ public interface UserReminderRepository extends JpaRepository<UserReminder, Long
     /** Все включённые напоминания у которых утро включено и час совпадает */
     @Query("""
         SELECT r FROM UserReminder r
+        JOIN FETCH r.user
         WHERE r.enabled = true
           AND r.morningEnabled = true
           AND r.hourMorning = :hour
@@ -27,6 +28,7 @@ public interface UserReminderRepository extends JpaRepository<UserReminder, Long
     /** Все включённые напоминания у которых вечер включено и час совпадает */
     @Query("""
         SELECT r FROM UserReminder r
+        JOIN FETCH r.user
         WHERE r.enabled = true
           AND r.eveningEnabled = true
           AND r.hourEvening = :hour

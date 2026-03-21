@@ -108,6 +108,7 @@ public class ReportService {
         });
 
         sb.append("\n\n").append(tipsService.randomTip());
+        sb.append("\n\n_Хорошего вечера! Завтра новый день 💪_");
         return sb.toString();
     }
 

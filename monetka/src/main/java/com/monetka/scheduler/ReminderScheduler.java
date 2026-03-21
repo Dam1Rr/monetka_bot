@@ -65,17 +65,33 @@ public class ReminderScheduler {
 
     private void sendMorning(UserReminder r) {
         long chatId = r.getUser().getTelegramId();
+        String[] tips = {
+                "💡 _Совет дня: записывай траты сразу — память обманывает._",
+                "💡 _Совет дня: маленькие траты складываются в большие суммы._",
+                "💡 _Совет дня: знать куда уходят деньги — первый шаг к контролю._",
+                "💡 _Совет дня: поставь лимит на кофе и такси — удивишься сколько сэкономишь._",
+        };
+        String tip = tips[(int)(System.currentTimeMillis() / 3600000 % tips.length)];
         String text =
-                "☀️ *Привет!* Не забудь записать утренние траты 📝\n\n" +
-                        "_Кофе, такси, завтрак — всё записывается за секунды._";
+                "☀️ *Доброе утро!* Не забудь записать утренние траты 📝\n\n" +
+                        "_Кофе, такси, завтрак — всё записывается за секунды._\n\n" +
+                        tip;
         bot.sendMessage(chatId, text, KeyboardFactory.mainMenu());
     }
 
     private void sendEvening(UserReminder r) {
         long chatId = r.getUser().getTelegramId();
+        String[] insights = {
+                "💡 _Инсайт: люди которые записывают траты тратят на 20% меньше._",
+                "💡 _Инсайт: подведи итог дня — это займёт 2 минуты но даст ясность._",
+                "💡 _Инсайт: если сегодня перерасход — завтра скорректируй план._",
+                "💡 _Инсайт: регулярный учёт трат — лучшая привычка для финансового здоровья._",
+        };
+        String insight = insights[(int)(System.currentTimeMillis() / 3600000 % insights.length)];
         String text =
                 "🌙 *Итог дня* — не забудь записать всё что потратил сегодня!\n\n" +
-                        "_Пара минут сейчас = ясная картина финансов завтра._";
+                        "_Пара минут сейчас = ясная картина финансов завтра._\n\n" +
+                        insight;
         bot.sendMessage(chatId, text, KeyboardFactory.mainMenu());
     }
 }
