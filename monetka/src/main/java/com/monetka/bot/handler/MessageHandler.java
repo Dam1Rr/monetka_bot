@@ -45,6 +45,7 @@ public class MessageHandler {
     private final InsightEngine    insightEngine;
     private final OnboardingService onboardingService;
     private final ReminderService   reminderService;
+    private final StreakService      streakService;
 
     public MessageHandler(UserService userService, UserStateService stateService,
                           TransactionService transactionService, SubscriptionService subscriptionService,
@@ -56,7 +57,8 @@ public class MessageHandler {
                           PaydayService paydayService,
                           InsightEngine insightEngine,
                           OnboardingService onboardingService,
-                          ReminderService reminderService) {
+                          ReminderService reminderService,
+                          StreakService streakService) {
         this.userService         = userService;
         this.stateService        = stateService;
         this.transactionService  = transactionService;
@@ -71,6 +73,7 @@ public class MessageHandler {
         this.insightEngine       = insightEngine;
         this.onboardingService   = onboardingService;
         this.reminderService     = reminderService;
+        this.streakService       = streakService;
     }
 
     public void handle(Message message, MonetkaBot bot) {
@@ -239,6 +242,10 @@ public class MessageHandler {
         com.monetka.model.Transaction tx = transactionService.addExpense(user, p.amount, p.description);
         stateService.reset(telegramId);
 
+        // Streak
+        StreakService.StreakResult streak = streakService.onActivity(user);
+        String streakLine = streakService.buildStreakLine(streak);
+
         // Долговой триггер — проверяем SAFE: любая ошибка не роняет расход
         String cat = detection.display();
         String learnedNote = detection.isFromLearned() ? "\n\uD83E\uDDE0 _Узнал по памяти_" : "";
@@ -253,7 +260,8 @@ public class MessageHandler {
                         "\uD83D\uDCDD " + com.monetka.bot.MonetkaBot.esc(p.description) + "\n" +
                         "\uD83D\uDCB8 \u2212" + fmt(p.amount) + "\n" +
                         "\uD83C\uDFF7 " + cat + confNote + learnedNote + "\n" +
-                        "\uD83D\uDCB3 \u0411\u0430\u043b\u0430\u043d\u0441: *" + fmt(user.getBalance()) + "*",
+                        "\uD83D\uDCB3 \u0411\u0430\u043b\u0430\u043d\u0441: *" + fmt(user.getBalance()) + "*" +
+                        streakLine,
                 KeyboardFactory.mainMenu());
 
         // Budget goal alert — send after main confirmation if threshold crossed
@@ -292,6 +300,10 @@ public class MessageHandler {
         paydayService.onIncome(user, p.amount);
         stateService.reset(telegramId);
 
+        // Streak
+        StreakService.StreakResult streak = streakService.onActivity(user);
+        String streakLine = streakService.buildStreakLine(streak);
+
         // Show updated daily budget based on real days left in month
         String cycleHint = paydayService.getCycleStatus(user)
                 .map(s -> "\n\n\uD83D\uDCC5 _\u0411\u044e\u0434\u0436\u0435\u0442: " +
@@ -303,7 +315,8 @@ public class MessageHandler {
                 pick("🎉 *Доход записан!*", "💰 *Зафиксировал!*", "✅ *Добавлено!*") + "\n\n" +
                         "📝 " + com.monetka.bot.MonetkaBot.esc(p.description) + "\n" +
                         "💰 +" + fmt(p.amount) + "\n" +
-                        "💳 Баланс: *" + fmt(user.getBalance()) + "*" + cycleHint,
+                        "💳 Баланс: *" + fmt(user.getBalance()) + "*" + cycleHint +
+                        streakLine,
                 KeyboardFactory.mainMenu());
     }
 

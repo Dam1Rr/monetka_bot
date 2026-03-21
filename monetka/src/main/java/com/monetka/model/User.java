@@ -48,6 +48,16 @@ public class User {
     @Column(name = "last_seen_at")
     private LocalDateTime lastSeenAt;
 
+    // ── Streak ──
+    @Column(name = "streak_days", nullable = false)
+    private int streakDays = 0;
+
+    @Column(name = "last_activity_date")
+    private java.time.LocalDate lastActivityDate;
+
+    @Column(name = "max_streak_days", nullable = false)
+    private int maxStreakDays = 0;
+
     public User() {}
 
     public static User create(Long telegramId, String username, String firstName, String lastName) {
@@ -86,6 +96,15 @@ public class User {
     public void setBlockedBot(boolean b)        { this.blockedBot = b; }
     public void setBlockedAt(LocalDateTime t)   { this.blockedAt = t; }
     public void setLastSeenAt(LocalDateTime t)  { this.lastSeenAt = t; }
+
+    // ── Streak getters/setters ──
+    public int getStreakDays()                          { return streakDays; }
+    public java.time.LocalDate getLastActivityDate()    { return lastActivityDate; }
+    public int getMaxStreakDays()                       { return maxStreakDays; }
+
+    public void setStreakDays(int v)                            { this.streakDays = v; }
+    public void setLastActivityDate(java.time.LocalDate d)      { this.lastActivityDate = d; }
+    public void setMaxStreakDays(int v)                         { this.maxStreakDays = v; }
 
     public String getDisplayName() {
         if (firstName != null && !firstName.isBlank()) return firstName;
