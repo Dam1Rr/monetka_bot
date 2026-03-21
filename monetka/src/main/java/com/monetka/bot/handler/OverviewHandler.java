@@ -218,7 +218,7 @@ public class OverviewHandler {
             for (int i = 0; i < show; i++) {
                 Transaction tx = txs.get(i);
                 sb.append(tx.getCreatedAt().toLocalDate().format(SHORT))
-                        .append("  ").append(tx.getDescription())
+                        .append("  ").append(com.monetka.bot.MonetkaBot.esc(tx.getDescription()))
                         .append("  \u2212").append(fmt(tx.getAmount())).append("\n");
             }
             if (txs.size() > 5)
@@ -262,7 +262,7 @@ public class OverviewHandler {
             for (int i = 0; i < show; i++) {
                 Transaction tx = txs.get(i);
                 sb.append(tx.getCreatedAt().toLocalDate().format(SHORT))
-                        .append("  ").append(tx.getDescription())
+                        .append("  ").append(com.monetka.bot.MonetkaBot.esc(tx.getDescription()))
                         .append("  *\u2212").append(fmt(tx.getAmount())).append("*\n");
             }
         }
@@ -452,7 +452,7 @@ public class OverviewHandler {
             String catName = tx.getCategory() != null ? tx.getCategory().getName() : "\u2014";
             bot.sendMarkdown(chatId,
                     "\uD83D\uDDD1 *\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u0437\u0430\u043f\u0438\u0441\u044c?*\n\n" +
-                            "\uD83D\uDCDD " + tx.getDescription() + "\n" +
+                            "\uD83D\uDCDD " + com.monetka.bot.MonetkaBot.esc(tx.getDescription()) + "\n" +
                             "\uD83D\uDCB8 \u2212" + fmt(tx.getAmount()) + "\n" +
                             "\uD83D\uDCC5 " + tx.getCreatedAt().toLocalDate().format(DATE_FMT),
                     KeyboardFactory.confirmDeleteTx(txId));
@@ -526,7 +526,7 @@ public class OverviewHandler {
             stateService.reset(user.getTelegramId());
             bot.sendMessage(chatId,
                     "\u2705 *\u0421\u0443\u043c\u043c\u0430 \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0430!*\n\n" +
-                            "\uD83D\uDCDD " + tx.getDescription() + "\n" +
+                            "\uD83D\uDCDD " + com.monetka.bot.MonetkaBot.esc(tx.getDescription()) + "\n" +
                             "\uD83D\uDCB8 \u2212" + fmt(newAmount) + "\n" +
                             "\uD83D\uDCB3 \u0411\u0430\u043b\u0430\u043d\u0441: *" + fmt(user.getBalance()) + "*",
                     KeyboardFactory.mainMenu());

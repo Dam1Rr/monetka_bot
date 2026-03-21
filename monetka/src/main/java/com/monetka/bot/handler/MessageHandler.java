@@ -172,18 +172,11 @@ public class MessageHandler {
             case "📊 Обзор"   -> overviewHandler.showMain(user, chatId, bot);
             case "❓ Помощь"   -> sendHelp(chatId, bot);
             default -> {
-                // Если во время онбординга пользователь пишет расход — обрабатываем сразу
-                ParseResult tryParse = parse(text);
-                if (tryParse != null) {
-                    stateService.setState(telegramId, UserState.WAITING_EXPENSE);
-                    handleExpenseInput(user, text, chatId, telegramId, bot);
-                } else {
-                    bot.sendMessage(chatId,
-                            pick("Хм, не понял 🤔 Используй кнопки или команды: /balance /stats /help",
-                                    "Что-то не то написал, используй кнопки 👇",
-                                    "Не знаю такой команды 😅 Попробуй /help"),
-                            KeyboardFactory.mainMenu());
-                }
+                bot.sendMessage(chatId,
+                        pick("Хм, не понял 🤔 Используй кнопки или команды: /balance /stats /help",
+                                "Что-то не то написал, используй кнопки 👇",
+                                "Не знаю такой команды 😅 Попробуй /help"),
+                        KeyboardFactory.mainMenu());
             }
         }
     }
@@ -226,12 +219,12 @@ public class MessageHandler {
             long catId = detection.getCategory().getId();
             Long subId = detection.getSubcategory() != null ? detection.getSubcategory().getId() : null;
             bot.sendMarkdown(chatId,
-                    "🤔 *" + p.description + "*\n\nВозможно ты имел в виду " + detection.suggestionLabel() + "?",
+                    "🤔 *" + com.monetka.bot.MonetkaBot.esc(p.description) + "*\n\nВозможно ты имел в виду " + detection.suggestionLabel() + "?",
                     KeyboardFactory.suggestCategory(detection.suggestionLabel(), catId, subId));
         } else {
             stateService.setState(telegramId, UserState.WAITING_CATEGORY_CHOICE);
             bot.sendMarkdown(chatId,
-                    "🤔 Не знаю куда отнести *" + p.description + "*\n\nВыбери категорию — запомню:",
+                    "🤔 Не знаю куда отнести *" + com.monetka.bot.MonetkaBot.esc(p.description) + "*\n\nВыбери категорию — запомню:",
                     KeyboardFactory.categoryChoice(detectionService.getAllCategories()));
         }
     }
