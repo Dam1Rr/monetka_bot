@@ -25,4 +25,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     /** Count churned (blocked bot) users */
     long countByBlockedBotTrue();
+
+    /** Admin dashboard */
+    long countByCreatedAtAfter(java.time.LocalDateTime from);
+
+    List<User> findAllByStatusOrderByCreatedAtDesc(UserStatus status);
 }

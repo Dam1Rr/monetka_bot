@@ -242,4 +242,44 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     @org.springframework.transaction.annotation.Transactional
     @Query("DELETE FROM Transaction t WHERE t.user = :user")
     void deleteAllByUser(@Param("user") com.monetka.model.User user);
+
+    // ── Admin dashboard ──
+
+    long countByCreatedAtAfter(LocalDateTime from);
+
+    long countByCreatedAtBetween(LocalDateTime from, LocalDateTime to);
+
+    long countByUserAndCreatedAtAfter(com.monetka.model.User user, LocalDateTime from);
+
+    @Query("""
+        SELECT COUNT(DISTINCT t.user)
+        FROM Transaction t
+        WHERE t.createdAt BETWEEN :from AND :to
+    """)
+    long countDistinctUsersByPeriod(
+            @Param("from") LocalDateTime from,
+            @Param("to")   LocalDateTime to);
+
+    @Query("""
+        SELECT t FROM Transaction t
+        JOIN FETCH t.user
+        LEFT JOIN FETCH t.category
+        ORDER BY t.createdAt DESC
+        LIMIT :limit
+    """)
+    List<com.monetka.model.Transaction> findTopByOrderByCreatedAtDesc(@Param("limit") int limit);
+
+    @Query("""
+        SELECT t.category.name, t.category.emoji,
+               SUM(t.amount) as total, COUNT(t) as cnt
+        FROM Transaction t
+        WHERE t.type = 'EXPENSE'
+          AND t.category IS NOT NULL
+          AND t.createdAt BETWEEN :from AND :to
+        GROUP BY t.category.name, t.category.emoji
+        ORDER BY total DESC
+    """)
+    List<Object[]> sumExpensesByCategoryAllUsers(
+            @Param("from") LocalDateTime from,
+            @Param("to")   LocalDateTime to);
 }
