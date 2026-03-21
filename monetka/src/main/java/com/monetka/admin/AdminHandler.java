@@ -233,7 +233,8 @@ public class AdminHandler {
         int sent = 0, failed = 0;
         for (com.monetka.model.User u : users) {
             try {
-                bot.sendMarkdown(u.getTelegramId(), "📢 *Сообщение от Monetka*\n\n" + text);
+                bot.sendMessage(u.getTelegramId(), "📢 Сообщение от Monetka\n\n" + text,
+                        com.monetka.bot.keyboard.KeyboardFactory.mainMenu());
                 sent++;
                 Thread.sleep(50); // rate limit protection
             } catch (Exception e) {

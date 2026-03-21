@@ -60,9 +60,10 @@ public class SubscriptionScheduler {
         for (Subscription sub : expiring) {
             Long days = sub.daysUntilExpiry();
             if (days == null) continue;
+            String safeName = com.monetka.bot.MonetkaBot.esc(sub.getName());
             String msg = days == 0
-                    ? "⚠️ *Подписка истекает сегодня!*\n📝 " + sub.getName()
-                    : "⏰ *Подписка истекает через " + days + " дн.*\n📝 " + sub.getName();
+                    ? "⚠️ *Подписка истекает сегодня!*\n📝 " + safeName
+                    : "⏰ *Подписка истекает через " + days + " дн.*\n📝 " + safeName;
             bot.sendMarkdown(sub.getUser().getTelegramId(), msg);
         }
     }

@@ -437,7 +437,7 @@ public class CallbackHandler {
     // ================================================================
 
     @org.springframework.transaction.annotation.Transactional
-    private void handleReset(String data, User user, long chatId, MonetkaBot bot) {
+    void handleReset(String data, User user, long chatId, MonetkaBot bot) {
         String action = data.substring("reset:".length());
 
         if (action.equals("cancel")) {
