@@ -71,6 +71,7 @@ public class CommandHandler {
             case "/day"           -> handleDay(chatId, telegramId, bot);
             case "/subscriptions" -> handleSubscriptions(chatId, telegramId, bot);
             case "/remind"        -> handleRemind(chatId, telegramId, bot);
+            case "/reset"         -> handleReset(chatId, telegramId, bot);
             case "/admin"         -> adminHandler.handleCommand(message, bot);
             case "/pending"       -> handlePending(chatId, telegramId, bot);
             case "/blocked"       -> handleBlockedList(chatId, telegramId, bot);
@@ -132,9 +133,24 @@ public class CommandHandler {
                         "/balance — текущий баланс 💳\n" +
                         "/stats — статистика расходов 📊\n" +
                         "/subscriptions — мои подписки 🔔\n" +
-                        "/remind — настройки напоминаний ⏰\n\n" +
+                        "/remind — настройки напоминаний ⏰\n" +
+                        "/reset — сбросить все данные 🗑\n\n" +
                         "💡 _Бот учится: чем больше используешь, тем точнее определяет категории!_" +
                         adminHint);
+    }
+
+    // ================================================================
+    // /reset — сброс всех данных пользователя
+    // ================================================================
+
+    private void handleReset(long chatId, long telegramId, MonetkaBot bot) {
+        if (!checkApproved(chatId, telegramId, bot)) return;
+        bot.sendMarkdown(chatId,
+                "🗑 *Сброс данных*\n\n" +
+                        "Это удалит *все* твои транзакции и обнулит баланс.\n" +
+                        "Лимиты и напоминания сохранятся.\n\n" +
+                        "_Действие необратимо. Уверен?_",
+                KeyboardFactory.confirmReset());
     }
 
     // ================================================================

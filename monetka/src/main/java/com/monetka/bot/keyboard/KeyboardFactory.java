@@ -343,6 +343,19 @@ public final class KeyboardFactory {
     }
 
     // ================================================================
+    // Reset confirmation
+    // ================================================================
+
+    public static InlineKeyboardMarkup confirmReset() {
+        return InlineKeyboardMarkup.builder()
+                .keyboardRow(List.of(
+                        btn("🗑 Да, удалить всё", "reset:confirm"),
+                        btn("← Отмена",           "reset:cancel")
+                ))
+                .build();
+    }
+
+    // ================================================================
     // Remind menu
     // ================================================================
 

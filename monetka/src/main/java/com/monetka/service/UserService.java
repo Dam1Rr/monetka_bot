@@ -35,6 +35,10 @@ public class UserService {
         return userRepository.findByTelegramId(telegramId);
     }
 
+    public User save(User user) {
+        return userRepository.save(user);
+    }
+
     @Transactional(readOnly = true)
     public boolean isActive(Long telegramId) {
         return userRepository.findByTelegramId(telegramId)

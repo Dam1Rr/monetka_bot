@@ -98,6 +98,7 @@ public class CallbackHandler {
         else if (data.startsWith("overview:"))     overviewHandler.handle(data.substring(9), user, chatId, callback.getMessage().getMessageId(), bot);
         else if (data.startsWith("onb:"))          handleOnboarding(data, chatId, user, bot);
         else if (data.startsWith("remind:"))       handleRemind(data, user, chatId, bot);
+        else if (data.startsWith("reset:"))        handleReset(data, user, chatId, bot);
         else log.warn("Unknown callback: {}", data);
     }
 
@@ -429,6 +430,38 @@ public class CallbackHandler {
                         reminderService.statusText(r) + "\n" +
                         "_Напоминания помогают не забывать записывать траты каждый день._",
                 KeyboardFactory.remindMenu(r));
+    }
+
+    // ================================================================
+    // Reset callbacks
+    // ================================================================
+
+    @org.springframework.transaction.annotation.Transactional
+    private void handleReset(String data, User user, long chatId, MonetkaBot bot) {
+        String action = data.substring("reset:".length());
+
+        if (action.equals("cancel")) {
+            bot.sendMessage(chatId, "Отменено ✅ Данные в сохранности.", KeyboardFactory.mainMenu());
+            return;
+        }
+
+        if (action.equals("confirm")) {
+            // Удаляем все транзакции
+            transactionRepository.deleteAllByUser(user);
+            // Обнуляем баланс и streak
+            user.setBalance(java.math.BigDecimal.ZERO);
+            user.setStreakDays(0);
+            user.setLastActivityDate(null);
+            user.setMaxStreakDays(0);
+            userService.save(user);
+
+            bot.sendMessage(chatId,
+                    "✅ Готово! Все транзакции удалены.\n\n" +
+                            "Баланс обнулён. Streak сброшен.\n" +
+                            "Лимиты и напоминания сохранены.\n\n" +
+                            "_Начинай с чистого листа 🌱_",
+                    KeyboardFactory.mainMenu());
+        }
     }
 
     // ================================================================
