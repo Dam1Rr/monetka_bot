@@ -10,7 +10,7 @@ public class OnboardingService {
 
     public void sendWelcome(User user, long chatId, MonetkaBot bot) {
         String name = user.getDisplayName();
-        bot.sendMessage(chatId,
+        bot.sendMarkdown(chatId,
                 "\uD83C\uDF89 *\u0414\u043e\u0431\u0440\u043e \u043f\u043e\u0436\u0430\u043b\u043e\u0432\u0430\u0442\u044c \u0432 Monetka, " + name + "!*\n\n" +
                         "\u042f \u043f\u043e\u043c\u043e\u0433\u0443 \u0442\u0435\u0431\u0435 \u043f\u043e\u043d\u044f\u0442\u044c \u043a\u0443\u0434\u0430 \u0443\u0445\u043e\u0434\u044f\u0442 \u0434\u0435\u043d\u044c\u0433\u0438 \u2014 " +
                         "\u0431\u0435\u0437 \u0442\u0430\u0431\u043b\u0438\u0446 \u0438 \u0441\u043b\u043e\u0436\u043d\u044b\u0445 \u043d\u0430\u0441\u0442\u0440\u043e\u0435\u043a.\n\n" +
@@ -19,7 +19,7 @@ public class OnboardingService {
     }
 
     public void sendHowToRecord(long chatId, MonetkaBot bot) {
-        bot.sendMessage(chatId,
+        bot.sendMarkdown(chatId,
                 "\uD83D\uDCB8 *\u041a\u0430\u043a \u0437\u0430\u043f\u0438\u0441\u0430\u0442\u044c \u0440\u0430\u0441\u0445\u043e\u0434*\n\n" +
                         "\u041d\u0430\u0436\u043c\u0438 \u043a\u043d\u043e\u043f\u043a\u0443 *\uD83D\uDCB8 \u0420\u0430\u0441\u0445\u043e\u0434* \u0438 \u043d\u0430\u043f\u0438\u0448\u0438\n" +
                         "\u043d\u0430\u0437\u0432\u0430\u043d\u0438\u0435 \u0438 \u0441\u0443\u043c\u043c\u0443 \u0432 \u043e\u0434\u043d\u043e\u043c \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0438:\n\n" +
