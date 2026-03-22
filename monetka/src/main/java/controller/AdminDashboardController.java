@@ -221,4 +221,32 @@ public class AdminDashboardController {
         stats.put("trackedSom",  tracked != null ? tracked.longValue() : 0);
         return ResponseEntity.ok(stats);
     }
+
+    // ── /api/admin/broadcast ────────────────────────────────────────
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.monetka.bot.MonetkaBot bot;
+
+    @PostMapping("/broadcast")
+    public ResponseEntity<?> sendBroadcast(
+            @RequestHeader("X-Admin-Key") String key,
+            @RequestBody Map<String, String> body) {
+        if (!isAuthorized(key)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
+        String text = body.get("text");
+        if (text == null || text.isBlank()) return ResponseEntity.badRequest().body("Empty text");
+
+        List<com.monetka.model.User> users = userRepository.findAllByStatusAndBlockedBotFalse(UserStatus.ACTIVE);
+        int sent = 0, failed = 0;
+        for (com.monetka.model.User u : users) {
+            try {
+                bot.sendMessage(u.getTelegramId(), "📢 Сообщение от Monetka\n\n" + text,
+                        com.monetka.bot.keyboard.KeyboardFactory.mainMenu());
+                sent++;
+                Thread.sleep(50);
+            } catch (Exception e) { failed++; }
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("sent", sent); result.put("failed", failed); result.put("total", users.size());
+        return ResponseEntity.ok(result);
+    }
 }
