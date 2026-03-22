@@ -249,4 +249,28 @@ public class AdminDashboardController {
         result.put("sent", sent); result.put("failed", failed); result.put("total", users.size());
         return ResponseEntity.ok(result);
     }
+
+    // ── /api/admin/reset-onboarding/{telegramId} ────────────────────
+
+    @PostMapping("/reset-onboarding/{telegramId}")
+    public ResponseEntity<?> resetOnboarding(
+            @RequestHeader("X-Admin-Key") String key,
+            @PathVariable Long telegramId) {
+        if (!isAuthorized(key)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
+
+        return userRepository.findByTelegramId(telegramId).map(user -> {
+            user.setStatus(UserStatus.PENDING);
+            user.setBalance(java.math.BigDecimal.ZERO);
+            userRepository.save(user);
+
+            // Удаляем транзакции чтобы был чистый старт
+            transactionRepository.deleteAllByUser(user);
+
+            Map<String, Object> res = new LinkedHashMap<>();
+            res.put("ok", true);
+            res.put("message", "Онбординг сброшен для " + user.getDisplayName());
+            res.put("telegramId", telegramId);
+            return ResponseEntity.ok(res);
+        }).orElse(ResponseEntity.notFound().build());
+    }
 }
