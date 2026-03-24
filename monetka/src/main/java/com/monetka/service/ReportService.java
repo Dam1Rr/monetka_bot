@@ -349,7 +349,7 @@ public class ReportService {
             sb.append("\uD83D\uDCC5 Самый дорогой день — ").append(peakDayStr)
                     .append(" (*").append(fmt(peakAmt)).append("*) \uD83D\uDE2C\n");
 
-        // Категории
+        // Категории с подкатегориями — как в недельном
         if (!cats.isEmpty() && expenses.compareTo(BigDecimal.ZERO) > 0) {
             sb.append("\n").append("\u2501".repeat(16)).append("\n");
             sb.append("*На что ушли деньги:*\n\n");
@@ -357,6 +357,13 @@ public class ReportService {
                 sb.append(cat.label)
                         .append("   *").append(fmt(cat.total)).append("*")
                         .append("  (").append(cat.percent).append("%)\n");
+                // Подкатегории
+                int subShow = Math.min(cat.subcats.size(), 4);
+                for (int j = 0; j < subShow; j++) {
+                    StatisticsService.SubcategoryAmount sub = cat.subcats.get(j);
+                    String prefix = (j == subShow - 1) ? "   \u2514 " : "   \u251C ";
+                    sb.append(prefix).append(sub.name).append(" \u2014 ").append(fmt(sub.amount)).append("\n");
+                }
             }
         }
 

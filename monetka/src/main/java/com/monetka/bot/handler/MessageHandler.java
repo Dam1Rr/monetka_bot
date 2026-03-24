@@ -172,11 +172,20 @@ public class MessageHandler {
             case "📊 Обзор"   -> overviewHandler.showMain(user, chatId, bot);
             case "❓ Помощь"   -> sendHelp(chatId, bot);
             default -> {
-                bot.sendMessage(chatId,
-                        pick("Хм, не понял 🤔 Используй кнопки или команды: /balance /stats /help",
-                                "Что-то не то написал, используй кнопки 👇",
-                                "Не знаю такой команды 😅 Попробуй /help"),
-                        KeyboardFactory.mainMenu());
+                // ── Умный ввод ──
+                // Если пишет "шаурма 300" в любой момент — сразу записываем как расход.
+                // Это помогает когда после перезапуска бота состояние сбросилось.
+                ParseResult tryParse = parse(text);
+                if (tryParse != null) {
+                    stateService.setState(telegramId, UserState.WAITING_EXPENSE);
+                    handleExpenseInput(user, text, chatId, telegramId, bot);
+                } else {
+                    bot.sendMessage(chatId,
+                            pick("Хм, не понял 🤔 Нажми *💸 Расход* или напиши сразу: `шаурма 300`",
+                                    "Используй кнопки внизу 👇 или напиши трату: `такси 500`",
+                                    "Не знаю такой команды 😅 Попробуй написать трату прямо: `кофе 150`"),
+                            KeyboardFactory.mainMenu());
+                }
             }
         }
     }
