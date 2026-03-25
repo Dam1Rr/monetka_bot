@@ -257,7 +257,7 @@ public class MessageHandler {
                 ? " _(~" + Math.round(detection.getConfidence() * 100) + "%)_" : "";
 
         String[] reactions = {"\u2705", "\uD83D\uDCBE", "\uD83D\uDCCC"};
-        String reaction = reactions[RND.nextInt(reactions.length)];
+        String reaction = reactions[ThreadLocalRandom.current().nextInt(reactions.length)];
 
         bot.sendMessage(chatId,
                 reaction + " *Записал!*\n\n" +
