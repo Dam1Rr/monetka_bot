@@ -6,6 +6,7 @@ import com.monetka.service.ReportService;
 import com.monetka.service.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -32,20 +33,25 @@ public class DailyReportScheduler {
         this.bot           = bot;
     }
 
-    // 23:55 Asia/Bishkek
+    // 23:55 Asia/Bishkek — @Async moves the work off the scheduler thread
+    @Async("broadcastExecutor")
     @Scheduled(cron = "0 55 23 * * *", zone = "Asia/Bishkek")
     public void sendDailyReports() {
         List<User> activeUsers = userService.getActiveUsers();
         log.info("Sending daily reports to {} users", activeUsers.size());
 
+        int sent = 0, failed = 0;
         for (User user : activeUsers) {
             try {
                 String report = reportService.buildDailyReport(user);
                 bot.sendMarkdown(user.getTelegramId(), report);
+                sent++;
             } catch (Exception e) {
+                failed++;
                 log.error("Failed to send daily report to {}: {}",
                         user.getTelegramId(), e.getMessage());
             }
         }
+        log.info("Daily reports done: sent={}, failed={}", sent, failed);
     }
 }

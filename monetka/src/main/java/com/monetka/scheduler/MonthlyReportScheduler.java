@@ -10,9 +10,9 @@ import com.monetka.service.StatisticsService;
 import com.monetka.service.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -30,7 +30,7 @@ import java.util.Locale;
 public class MonthlyReportScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(MonthlyReportScheduler.class);
-    private static final ZoneId BISHKEK = ZoneId.of("Asia/Bishkek");
+    private static final ZoneId BISHKEK = com.monetka.util.AppConstants.BISHKEK;
 
     private final UserService       userService;
     private final StatisticsService statisticsService;
@@ -51,8 +51,8 @@ public class MonthlyReportScheduler {
     }
 
     // 1st of month, 10:00 Bishkek
+    @Async("broadcastExecutor")
     @Scheduled(cron = "0 0 10 1 * *", zone = "Asia/Bishkek")
-    @Transactional(readOnly = true)
     public void sendMonthlyReports() {
         List<User> users = userService.getActiveUsers();
         log.info("Sending monthly reports to {} users", users.size());
@@ -103,19 +103,9 @@ public class MonthlyReportScheduler {
             sb.append("⚠️ Перерасход: *").append(fmt(saved.abs())).append("*\n");
         }
 
-        // Best category vs goal
+        // Best/worst category vs goal
         if (!goals.isEmpty() && !cats.isEmpty()) {
             sb.append("\n");
-            String best = null; String worst = null;
-            for (StatisticsService.CategoryStats cat : cats) {
-                goals.stream()
-                        .filter(g -> cat.label.contains(g.getCategory().getName()))
-                        .findFirst()
-                        .ifPresent(g -> {
-                            // just append inline — closures can't modify local vars
-                        });
-            }
-            // Find goal results
             for (BudgetGoal g : goals) {
                 BigDecimal spent = BigDecimal.ZERO;
                 for (StatisticsService.CategoryStats c : cats) {
@@ -167,5 +157,5 @@ public class MonthlyReportScheduler {
     }
 
     private BigDecimal safe(BigDecimal v) { return v != null ? v : BigDecimal.ZERO; }
-    private String fmt(BigDecimal v) { return String.format("%,.0f сом", v); }
+    private String fmt(BigDecimal v)      { return com.monetka.util.AppConstants.fmt(v); }
 }

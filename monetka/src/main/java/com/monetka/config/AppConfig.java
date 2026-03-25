@@ -1,32 +1,32 @@
 package com.monetka.config;
 
-import com.monetka.service.AiInsightService;
-import com.monetka.service.CategoryDetectionService;
-import jakarta.annotation.PostConstruct;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.client.RestTemplate;
 
 import javax.sql.DataSource;
+import java.util.concurrent.Executor;
 
 @Configuration
+@EnableAsync
 public class AppConfig {
 
-    @Autowired
-    private CategoryDetectionService categoryDetectionService;
-
-    @Autowired
-    private AiInsightService aiInsightService;
-
     /**
-     * Wire AI after all beans are initialized — avoids circular dependency.
-     * CategoryDetectionService <- MessageHandler <- AiInsightService (if constructor).
+     * Dedicated thread pool for async broadcast/report tasks.
+     * Prevents schedulers from blocking each other when sending to many users.
      */
-    @PostConstruct
-    public void wireAi() {
-        categoryDetectionService.setAiInsightService(aiInsightService);
+    @Bean(name = "broadcastExecutor")
+    public Executor broadcastExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(500);
+        executor.setThreadNamePrefix("broadcast-");
+        executor.initialize();
+        return executor;
     }
 
     @Bean

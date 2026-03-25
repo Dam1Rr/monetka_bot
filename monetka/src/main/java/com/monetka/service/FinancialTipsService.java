@@ -5,15 +5,13 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Генерирует реальные финансовые советы с расчётами.
  */
 @Service
 public class FinancialTipsService {
-
-    private static final Random RANDOM = new Random();
 
     private static final List<String> GENERAL_TIPS = List.of(
             "Правило 50/30/20: 50% на нужды, 30% на желания, 20% на накопления.",
@@ -50,7 +48,7 @@ public class FinancialTipsService {
 
     /** Общий случайный совет */
     public String randomTip() {
-        return "💡 " + GENERAL_TIPS.get(RANDOM.nextInt(GENERAL_TIPS.size()));
+        return "💡 " + GENERAL_TIPS.get(ThreadLocalRandom.current().nextInt(GENERAL_TIPS.size()));
     }
 
     // ---- Helpers ----

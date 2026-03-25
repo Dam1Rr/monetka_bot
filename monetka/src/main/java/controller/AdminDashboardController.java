@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -27,18 +26,21 @@ import java.util.stream.Collectors;
 @CrossOrigin(origins = "${admin.cors-origin:*}")
 public class AdminDashboardController {
 
-    private static final ZoneId BISHKEK = ZoneId.of("Asia/Bishkek");
+    private static final ZoneId BISHKEK = com.monetka.util.AppConstants.BISHKEK;
 
     @Value("${admin.api-key:monetka-secret-2026}")
     private String adminApiKey;
 
     private final UserRepository        userRepository;
     private final TransactionRepository transactionRepository;
+    private final UserService           userService;
 
     public AdminDashboardController(UserRepository userRepository,
-                                    TransactionRepository transactionRepository) {
+                                    TransactionRepository transactionRepository,
+                                    UserService userService) {
         this.userRepository        = userRepository;
         this.transactionRepository = transactionRepository;
+        this.userService           = userService;
     }
 
     // ── Auth check ─────────────────────────────────────────────────
@@ -259,12 +261,11 @@ public class AdminDashboardController {
         if (!isAuthorized(key)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
 
         return userRepository.findByTelegramId(telegramId).map(user -> {
+            // Atomic reset — transactions + balance + streak in one TX
+            userService.resetUserData(user);
+            // Then set status PENDING for re-onboarding
             user.setStatus(UserStatus.PENDING);
-            user.setBalance(java.math.BigDecimal.ZERO);
-            userRepository.save(user);
-
-            // Удаляем транзакции чтобы был чистый старт
-            transactionRepository.deleteAllByUser(user);
+            userService.save(user);
 
             Map<String, Object> res = new LinkedHashMap<>();
             res.put("ok", true);

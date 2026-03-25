@@ -19,13 +19,12 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Component
 public class CommandHandler {
 
     private static final Logger log = LoggerFactory.getLogger(CommandHandler.class);
-    private static final Random RND = new Random();
 
     private final UserService         userService;
     private final UserStateService    stateService;
@@ -363,5 +362,7 @@ public class CommandHandler {
     }
 
     @SafeVarargs
-    private static <T> T pick(T... options) { return options[RND.nextInt(options.length)]; }
+    private static <T> T pick(T... options) {
+        return options[ThreadLocalRandom.current().nextInt(options.length)];
+    }
 }

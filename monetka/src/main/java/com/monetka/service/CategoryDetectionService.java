@@ -9,6 +9,7 @@ import com.monetka.repository.SubcategoryRepository;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,8 +25,9 @@ public class CategoryDetectionService {
     private final SubcategoryRepository    subcategoryRepository;
     private final LearnedKeywordRepository learnedKeywordRepository;
 
-    private final Map<String, Subcategory> keywordIndex = new HashMap<>();
-    private Category defaultCategory;
+    // volatile ensures visibility across threads; replaced atomically in buildIndex()
+    private volatile Map<String, Subcategory> keywordIndex = new HashMap<>();
+    private volatile Category defaultCategory;
 
     /**
      * Слова которые НИКОГДА не учатся как ключевые — слишком общие.
@@ -49,33 +51,36 @@ public class CategoryDetectionService {
             "один","одна","два","две","три","четыре","пять","шесть","семь","восемь","девять","десять"
     ));
 
-    // AiInsightService инжектируется через setter чтобы избежать circular dependency
-    // CategoryDetectionService ← MessageHandler ← AiInsightService (если через конструктор)
-    private AiInsightService aiInsightService;
-
-    public void setAiInsightService(AiInsightService ai) { this.aiInsightService = ai; }
+    // @Lazy breaks the circular dependency without needing a setter or AppConfig wiring
+    private final AiInsightService aiInsightService;
 
     public CategoryDetectionService(CategoryRepository categoryRepository,
                                     SubcategoryRepository subcategoryRepository,
-                                    LearnedKeywordRepository learnedKeywordRepository) {
+                                    LearnedKeywordRepository learnedKeywordRepository,
+                                    @Lazy AiInsightService aiInsightService) {
         this.categoryRepository       = categoryRepository;
         this.subcategoryRepository    = subcategoryRepository;
         this.learnedKeywordRepository = learnedKeywordRepository;
+        this.aiInsightService         = aiInsightService;
     }
 
     @PostConstruct
     public void buildIndex() {
-        keywordIndex.clear();
         List<Category> all = categoryRepository.findAll();
+        Map<String, Subcategory> newIndex = new HashMap<>();
+        Category newDefault = null;
         for (Category category : all) {
-            if (category.isDefault()) defaultCategory = category;
+            if (category.isDefault()) newDefault = category;
             for (Subcategory sub : category.getSubcategories()) {
                 for (String kw : sub.getKeywords()) {
-                    keywordIndex.put(kw.toLowerCase().trim(), sub);
+                    newIndex.put(kw.toLowerCase().trim(), sub);
                 }
             }
         }
-        log.info("Category index built: {} keywords across {} categories", keywordIndex.size(), all.size());
+        // Atomic publish — any thread reading keywordIndex after this line sees the new map
+        this.keywordIndex    = newIndex;
+        this.defaultCategory = newDefault;
+        log.info("Category index built: {} keywords across {} categories", newIndex.size(), all.size());
     }
 
     public void reload() { buildIndex(); }

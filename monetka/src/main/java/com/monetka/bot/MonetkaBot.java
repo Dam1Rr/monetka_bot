@@ -18,16 +18,16 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboard;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+import com.monetka.util.AppConstants;
+
 import java.io.ByteArrayInputStream;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Optional;
 
 @Component
 public class MonetkaBot extends TelegramWebhookBot {
 
     private static final Logger logger = LoggerFactory.getLogger(MonetkaBot.class);
-    private static final ZoneId BISHKEK = ZoneId.of("Asia/Bishkek");
 
     private final BotProperties  botProperties;
     private final UpdateDispatcher dispatcher;
@@ -147,7 +147,7 @@ public class MonetkaBot extends TelegramWebhookBot {
             userRepository.findByTelegramId(chatId).ifPresent(u -> {
                 if (!u.isBlockedBot()) {
                     u.setBlockedBot(true);
-                    u.setBlockedAt(LocalDateTime.now(BISHKEK));
+                    u.setBlockedAt(LocalDateTime.now(AppConstants.BISHKEK));
                     userRepository.save(u);
                 }
             });
@@ -159,7 +159,7 @@ public class MonetkaBot extends TelegramWebhookBot {
     public void markSeen(long chatId) {
         try {
             userRepository.findByTelegramId(chatId).ifPresent(u -> {
-                LocalDateTime now = LocalDateTime.now(BISHKEK);
+                LocalDateTime now = LocalDateTime.now(AppConstants.BISHKEK);
                 boolean stale = u.getLastSeenAt() == null ||
                         u.getLastSeenAt().plusHours(1).isBefore(now);
                 if (stale) {

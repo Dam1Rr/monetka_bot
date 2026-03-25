@@ -11,7 +11,6 @@ import com.monetka.model.User;
 import com.monetka.model.enums.UserState;
 import com.monetka.repository.CategoryRepository;
 import com.monetka.repository.SubcategoryRepository;
-import com.monetka.repository.TransactionRepository;
 import com.monetka.service.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +35,6 @@ public class CallbackHandler {
     private final CategoryDetectionService detectionService;
     private final CategoryRepository       categoryRepository;
     private final SubcategoryRepository    subcategoryRepository;
-    private final TransactionRepository    transactionRepository;
     private final BotProperties            botProperties;
     private final AdminHandler             adminHandler;
     private final OverviewHandler          overviewHandler;
@@ -47,7 +45,7 @@ public class CallbackHandler {
                            TransactionService transactionService, SubscriptionService subscriptionService,
                            ReportService reportService, CategoryDetectionService detectionService,
                            CategoryRepository categoryRepository, SubcategoryRepository subcategoryRepository,
-                           TransactionRepository transactionRepository, BotProperties botProperties,
+                           BotProperties botProperties,
                            AdminHandler adminHandler,
                            OverviewHandler overviewHandler,
                            OnboardingService onboardingService,
@@ -60,7 +58,6 @@ public class CallbackHandler {
         this.detectionService     = detectionService;
         this.categoryRepository   = categoryRepository;
         this.subcategoryRepository= subcategoryRepository;
-        this.transactionRepository= transactionRepository;
         this.botProperties        = botProperties;
         this.adminHandler         = adminHandler;
         this.overviewHandler      = overviewHandler;
@@ -205,8 +202,8 @@ public class CallbackHandler {
             case "onb:step2"  -> onboardingService.sendHowToRecord(chatId, bot);
             case "onb:step3"  -> onboardingService.sendResetOffer(chatId, bot);
             case "onb:reset"  -> {
-                // Delete all user transactions and start fresh
-                transactionRepository.deleteAllByUser(user);
+                // Delete all user transactions and reset balance/streak atomically
+                userService.resetUserData(user);
                 onboardingService.sendAskInitialBalance(chatId, bot);
                 stateService.setState(user.getTelegramId(), com.monetka.model.enums.UserState.WAITING_INITIAL_BALANCE);
             }
@@ -436,7 +433,6 @@ public class CallbackHandler {
     // Reset callbacks
     // ================================================================
 
-    @org.springframework.transaction.annotation.Transactional
     void handleReset(String data, User user, long chatId, MonetkaBot bot) {
         String action = data.substring("reset:".length());
 
@@ -446,15 +442,8 @@ public class CallbackHandler {
         }
 
         if (action.equals("confirm")) {
-            // Удаляем все транзакции
-            transactionRepository.deleteAllByUser(user);
-            // Обнуляем баланс и streak
-            user.setBalance(java.math.BigDecimal.ZERO);
-            user.setStreakDays(0);
-            user.setLastActivityDate(null);
-            user.setMaxStreakDays(0);
-            userService.save(user);
-
+            // Single @Transactional call in UserService — delete + reset are atomic
+            userService.resetUserData(user);
             bot.sendMessage(chatId,
                     "✅ Готово! Все транзакции удалены.\n\n" +
                             "Баланс обнулён. Streak сброшен.\n" +

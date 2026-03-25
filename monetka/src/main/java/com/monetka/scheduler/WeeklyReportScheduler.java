@@ -9,16 +9,16 @@ import com.monetka.service.StatisticsService;
 import com.monetka.service.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.*;
 import java.time.format.TextStyle;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Sends weekly summary every Monday at 10:00 Bishkek time.
@@ -27,7 +27,7 @@ import java.util.Locale;
 public class WeeklyReportScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(WeeklyReportScheduler.class);
-    private static final ZoneId BISHKEK = ZoneId.of("Asia/Bishkek");
+    private static final ZoneId BISHKEK = com.monetka.util.AppConstants.BISHKEK;
 
     private final UserService           userService;
     private final StatisticsService     statisticsService;
@@ -45,8 +45,8 @@ public class WeeklyReportScheduler {
     }
 
     // Every Monday at 10:00 Bishkek
+    @Async("broadcastExecutor")
     @Scheduled(cron = "0 0 10 * * MON", zone = "Asia/Bishkek")
-    @Transactional(readOnly = true)
     public void sendWeeklyReports() {
         List<User> users = userService.getActiveUsers();
         log.info("Sending weekly reports to {} users", users.size());
@@ -138,28 +138,23 @@ public class WeeklyReportScheduler {
         bot.sendMessage(user.getTelegramId(), sb.toString(), KeyboardFactory.mainMenu());
     }
 
+    /** Single DB query instead of 7 separate day-by-day queries. */
     private String findBusiestDay(User user, LocalDateTime from, LocalDateTime to) {
-        // Iterate day by day, find max spending day
-        LocalDate cursor = from.toLocalDate();
-        LocalDate end    = to.toLocalDate();
-        BigDecimal maxAmt = BigDecimal.ZERO;
-        String busiestDay = null;
+        List<com.monetka.model.Transaction> txs =
+                transactionRepository.findByUserAndTypeAndPeriod(user, TransactionType.EXPENSE, from, to);
+        if (txs.isEmpty()) return null;
 
-        while (!cursor.isAfter(end)) {
-            LocalDateTime dayFrom = cursor.atStartOfDay();
-            LocalDateTime dayTo   = cursor.plusDays(1).atStartOfDay();
-            BigDecimal dayAmt = safe(transactionRepository.sumByUserAndTypeAndPeriod(
-                    user, TransactionType.EXPENSE, dayFrom, dayTo));
-            if (dayAmt.compareTo(maxAmt) > 0) {
-                maxAmt = dayAmt;
-                busiestDay = cursor.getDayOfWeek()
-                        .getDisplayName(TextStyle.FULL_STANDALONE, new Locale("ru"));
-            }
-            cursor = cursor.plusDays(1);
+        Map<LocalDate, BigDecimal> byDay = new HashMap<>();
+        for (com.monetka.model.Transaction tx : txs) {
+            byDay.merge(tx.getCreatedAt().toLocalDate(), tx.getAmount(), BigDecimal::add);
         }
-        return maxAmt.compareTo(BigDecimal.ZERO) > 0 ? busiestDay : null;
+        return byDay.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(e -> e.getKey().getDayOfWeek()
+                        .getDisplayName(TextStyle.FULL_STANDALONE, new Locale("ru")))
+                .orElse(null);
     }
 
     private BigDecimal safe(BigDecimal v) { return v != null ? v : BigDecimal.ZERO; }
-    private String fmt(BigDecimal v)      { return String.format("%,.0f сом", v); }
+    private String fmt(BigDecimal v)      { return com.monetka.util.AppConstants.fmt(v); }
 }

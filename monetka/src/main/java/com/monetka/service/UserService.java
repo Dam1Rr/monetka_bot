@@ -2,12 +2,14 @@ package com.monetka.service;
 
 import com.monetka.model.User;
 import com.monetka.model.enums.UserStatus;
+import com.monetka.repository.TransactionRepository;
 import com.monetka.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,10 +17,13 @@ import java.util.Optional;
 public class UserService {
 
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
-    private final UserRepository userRepository;
+    private final UserRepository        userRepository;
+    private final TransactionRepository transactionRepository;
 
-    public UserService(UserRepository userRepository) {
-        this.userRepository = userRepository;
+    public UserService(UserRepository userRepository,
+                       TransactionRepository transactionRepository) {
+        this.userRepository        = userRepository;
+        this.transactionRepository = transactionRepository;
     }
 
     @Transactional
@@ -83,4 +88,20 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public List<User> getBlockedUsers()  { return userRepository.findAllByStatus(UserStatus.BLOCKED); }
+
+    /**
+     * Atomically deletes all user transactions and resets balance/streak.
+     * Must be called from CallbackHandler (or anywhere) — runs in a single transaction
+     * so delete + reset are never partially applied.
+     */
+    @Transactional
+    public void resetUserData(User user) {
+        transactionRepository.deleteAllByUser(user);
+        user.setBalance(BigDecimal.ZERO);
+        user.setStreakDays(0);
+        user.setLastActivityDate(null);
+        user.setMaxStreakDays(0);
+        userRepository.save(user);
+        log.info("User data reset: {}", user.getTelegramId());
+    }
 }

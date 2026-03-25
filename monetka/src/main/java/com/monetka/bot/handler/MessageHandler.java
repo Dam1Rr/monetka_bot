@@ -20,7 +20,7 @@ import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Component
 public class MessageHandler {
@@ -28,7 +28,6 @@ public class MessageHandler {
     private static final Logger log = LoggerFactory.getLogger(MessageHandler.class);
     private static final String CANCEL_BUTTON = "❌ Отменить действие";
     private static final DateTimeFormatter D_FMT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
-    private static final Random RND = new Random();
 
     private final UserService              userService;
     private final UserStateService         stateService;
@@ -241,7 +240,10 @@ public class MessageHandler {
     private void saveExpense(User user, ParseResult p,
                              CategoryDetectionService.DetectionResult detection,
                              long chatId, long telegramId, MonetkaBot bot) {
-        com.monetka.model.Transaction tx = transactionService.addExpense(user, p.amount, p.description);
+        // Pass detection result directly — avoids running detectCategory() a second time
+        com.monetka.model.Transaction tx = transactionService.addExpense(
+                user, p.amount, p.description,
+                detection.getCategory(), detection.getSubcategory());
         stateService.reset(telegramId);
 
         // Streak
@@ -469,9 +471,10 @@ public class MessageHandler {
 
     private String fmt(BigDecimal amount) { return String.format("%,.0f сом", amount); }
 
-    /** Pick a random string from options for variety */
     @SafeVarargs
-    private static <T> T pick(T... options) { return options[RND.nextInt(options.length)]; }
+    private static <T> T pick(T... options) {
+        return options[ThreadLocalRandom.current().nextInt(options.length)];
+    }
 
     // ================================================================
     // Обработка ввода времени напоминания

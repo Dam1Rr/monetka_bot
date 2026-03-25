@@ -11,9 +11,11 @@ spring:
     password: ${DATABASE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 5
-      minimum-idle: 1
+      maximum-pool-size: 10
+      minimum-idle: 2
       connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1800000
       initialization-fail-timeout: 60000
 
   jpa:
@@ -45,7 +47,16 @@ telegram:
     webhook-url: ${WEBHOOK_URL:http://localhost:8080}
     admin-ids: ${ADMIN_IDS:}
 
-spring.task.scheduling.pool.size: 2
+spring:
+  task:
+    scheduling:
+      pool:
+        size: 4
+    execution:
+      pool:
+        core-size: 4
+        max-size: 8
+        queue-capacity: 1000
 
 logging:
   level:
