@@ -40,14 +40,6 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
-telegram:
-  bot:
-    token: ${BOT_TOKEN:changeme}
-    username: ${BOT_USERNAME:changeme}
-    webhook-url: ${WEBHOOK_URL:http://localhost:8080}
-    admin-ids: ${ADMIN_IDS:}
-
-spring:
   task:
     scheduling:
       pool:
@@ -57,6 +49,13 @@ spring:
         core-size: 4
         max-size: 8
         queue-capacity: 1000
+
+telegram:
+  bot:
+    token: ${BOT_TOKEN:changeme}
+    username: ${BOT_USERNAME:changeme}
+    webhook-url: ${WEBHOOK_URL:http://localhost:8080}
+    admin-ids: ${ADMIN_IDS:}
 
 logging:
   level:
